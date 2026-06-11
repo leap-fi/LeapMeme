@@ -1,0 +1,9 @@
+***REMOVED***
+***REMOVED***hub
+***REMOVED***
+.git
+web/.next
+backend/bin
+backend/.env
+**/*.md
+!backend/**/*.md

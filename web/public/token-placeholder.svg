@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Token placeholder">
+  <defs>
+    <radialGradient id="coinFace" cx="36%" cy="30%" r="62%">
+      <stop offset="0%" stop-color="#FFF6B8" />
+      <stop offset="28%" stop-color="#FFE14A" />
+      <stop offset="58%" stop-color="#F0B41E" />
+      <stop offset="100%" stop-color="#B87808" />
+    </radialGradient>
+    <linearGradient id="coinRim" x1="24" y1="6" x2="24" y2="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFE566" />
+      <stop offset="55%" stop-color="#D99A12" />
+      <stop offset="100%" stop-color="#8F5A06" />
+    </linearGradient>
+    <linearGradient id="coinShine" x1="12" y1="10" x2="28" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.72" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+    <radialGradient id="coinShadow" cx="68%" cy="72%" r="42%">
+      <stop offset="0%" stop-color="#7A4E05" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#7A4E05" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <ellipse cx="24" cy="27" rx="15.5" ry="4.2" fill="#000000" fill-opacity="0.14" />
+  <circle cx="24" cy="24" r="17" fill="url(#coinFace)" />
+  <circle cx="24" cy="24" r="17" fill="url(#coinShadow)" />
+  <circle cx="24" cy="24" r="17" stroke="url(#coinRim)" stroke-width="2.4" />
+  <circle cx="24" cy="24" r="12.2" stroke="#C98E12" stroke-width="1.15" stroke-opacity="0.55" />
+  <circle cx="24" cy="24" r="9.6" stroke="#FFF2B0" stroke-width="0.75" stroke-opacity="0.4" />
+  <ellipse cx="17.5" cy="16.5" rx="7.5" ry="4.8" fill="url(#coinShine)" transform="rotate(-28 17.5 16.5)" />
+  <ellipse cx="15.8" cy="14.8" rx="3.2" ry="2" fill="#FFFFFF" fill-opacity="0.58" transform="rotate(-28 15.8 14.8)" />
+</svg>

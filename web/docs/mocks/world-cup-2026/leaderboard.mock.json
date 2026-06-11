@@ -1,0 +1,172 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "summary": {
+      "tokensGraduated": 3,
+      "totalRewardsPaidUsd": 30810,
+      "uniqueEarners": 12,
+      "avgRewardPerTokenUsd": 10270
+    },
+    "graduatedTokens": [
+      {
+        "tokenSymbol": "$ARG5L",
+        "name": "Argentina 5x Long",
+        "teamCode": "ARG",
+        "type": "long",
+        "leverage": "5x",
+        "graduatedAt": "2026-05-28",
+        "totalRewardsUsd": 12450,
+        "contractAddress": "0xarg0000000000000000000000000000000000001",
+        "explorerUrl": "https://hyperevmscan.io/token/0xarg0000000000000000000000000000000000001",
+        "flagUrl": "https://s3.leap.fun/world-cup-2026-flags/Argentina.png",
+        "deployer": {
+          "address": "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12",
+          "rewardUsd": 6224
+        },
+        "topHolders": [
+          {
+            "rank": 1,
+            "address": "0x5e6f7890abcdef1234567890abcdef1234567890",
+            "holderPoolPercentage": 45,
+            "rewardUsd": 5602.5
+          },
+          {
+            "rank": 2,
+            "address": "0x9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+            "holderPoolPercentage": 30,
+            "rewardUsd": 3735
+          },
+          {
+            "rank": 3,
+            "address": "0x3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c",
+            "holderPoolPercentage": 25,
+            "rewardUsd": 3112.5
+          }
+        ]
+      },
+      {
+        "tokenSymbol": "$BRA3L",
+        "name": "Brazil 3x Long",
+        "teamCode": "BRA",
+        "type": "long",
+        "leverage": "3x",
+        "graduatedAt": "2026-05-30",
+        "totalRewardsUsd": 9820,
+        "contractAddress": "0xbra0000000000000000000000000000000000000002",
+        "explorerUrl": "https://hyperevmscan.io/token/0xbra0000000000000000000000000000000000000002",
+        "flagUrl": "https://s3.leap.fun/world-cup-2026-flags/Brazil.png",
+        "deployer": {
+          "address": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d",
+          "rewardUsd": 4910
+        },
+        "topHolders": [
+          {
+            "rank": 1,
+            "address": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d",
+            "holderPoolPercentage": 50,
+            "rewardUsd": 4910
+          },
+          {
+            "rank": 2,
+            "address": "0x5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e",
+            "holderPoolPercentage": 30,
+            "rewardUsd": 2946
+          },
+          {
+            "rank": 3,
+            "address": "0x9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
+            "holderPoolPercentage": 20,
+            "rewardUsd": 1964
+          }
+        ]
+      },
+      {
+        "tokenSymbol": "$GER5S",
+        "name": "Germany 5x Short",
+        "teamCode": "GER",
+        "type": "short",
+        "leverage": "5x",
+        "graduatedAt": "2026-06-01",
+        "totalRewardsUsd": 8540,
+        "contractAddress": "0xger0000000000000000000000000000000000000003",
+        "explorerUrl": "https://hyperevmscan.io/token/0xger0000000000000000000000000000000000000003",
+        "flagUrl": "https://s3.leap.fun/world-cup-2026-flags/Germany.png",
+        "deployer": {
+          "address": "0x3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d",
+          "rewardUsd": 4270
+        },
+        "topHolders": [
+          {
+            "rank": 1,
+            "address": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e",
+            "holderPoolPercentage": 55,
+            "rewardUsd": 4697
+          },
+          {
+            "rank": 2,
+            "address": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e",
+            "holderPoolPercentage": 28,
+            "rewardUsd": 2391.2
+          },
+          {
+            "rank": 3,
+            "address": "0x5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
+            "holderPoolPercentage": 17,
+            "rewardUsd": 1451.8
+          }
+        ]
+      }
+    ],
+    "topEarners": [
+      {
+        "rank": 1,
+        "address": "0x5e6f7890abcdef1234567890abcdef1234567890",
+        "totalEarnedUsd": 4215,
+        "graduatedTokenCount": 3,
+        "graduatedTokenSymbols": [
+          "$ARG5L",
+          "$BRA3L",
+          "$GER5S"
+        ]
+      },
+      {
+        "rank": 2,
+        "address": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d",
+        "totalEarnedUsd": 3892,
+        "graduatedTokenCount": 2,
+        "graduatedTokenSymbols": [
+          "$BRA3L",
+          "$GER5S"
+        ]
+      },
+      {
+        "rank": 3,
+        "address": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d",
+        "totalEarnedUsd": 2964,
+        "graduatedTokenCount": 1,
+        "graduatedTokenSymbols": [
+          "$BRA3L"
+        ]
+      },
+      {
+        "rank": 4,
+        "address": "0x9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+        "totalEarnedUsd": 2156,
+        "graduatedTokenCount": 2,
+        "graduatedTokenSymbols": [
+          "$ARG5L"
+        ]
+      },
+      {
+        "rank": 5,
+        "address": "0x1a2b3c4d5e6f7890abcdef1234567890abcdef12",
+        "totalEarnedUsd": 2490,
+        "graduatedTokenCount": 1,
+        "graduatedTokenSymbols": [
+          "$ARG5L"
+        ]
+      }
+    ]
+  }
+}

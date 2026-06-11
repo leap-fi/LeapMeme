@@ -1,0 +1,61 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: leap-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: leap_backend
+    ports:
+      - "13306:3306"
+    volumes:
+      # 绑定到 D 盘，避免 Docker 命名卷默认落在 C 盘
+      - D:/cache/docker/leap/mysql:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: leap-redis
+    restart: unless-stopped
+    ports:
+      - "56379:6379"
+    volumes:
+      - D:/cache/docker/leap/redis:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: leap-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      GIN_MODE: release
+      MYSQL_DSN: root:password@tcp(mysql:3306)/leap_backend?charset=utf8mb4&parseTime=True&loc=Local
+      REDIS_CONN_STRING: redis://redis:6379/0
+      MIGRATIONS_PATH: migrations
+      SESSION_SECRET: change-me-in-production
+      JWT_SECRET: change-me-in-production
+      RUN_MIGRATIONS: "true"
+      AUTO_MIGRATE: "false"
+      ENABLE_JOBS: "true"
+      LOG_LEVEL: info
+      CORS_ORIGINS: "*"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

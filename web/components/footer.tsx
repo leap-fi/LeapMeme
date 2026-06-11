@@ -1,0 +1,75 @@
+'use client'
+
+import Image from 'next/image'
+import Link from 'next/link'
+import { Send, FileText, ExternalLink } from 'lucide-react'
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+      className={className}
+    >
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  )
+}
+
+export function Footer() {
+  return (
+    <footer className="border-t border-border bg-card/50 px-6 py-4">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/* Left - Branding */}
+        <div className="flex items-center gap-4">
+          <Image src="/logo.png" alt="LEAP" width={32} height={32} className="w-8 h-8" />
+          <span className="text-xs text-muted-foreground">2026 All rights reserved</span>
+        </div>
+
+        {/* Center - Links */}
+        <div className="flex items-center gap-6">
+          <a
+            href="https://docs.leap.fun/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          >
+            <FileText className="w-3 h-3" />
+            Docs
+          </a>
+          <Link href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+            <ExternalLink className="w-3 h-3" />
+            Terms
+          </Link>
+          <Link href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+            <ExternalLink className="w-3 h-3" />
+            Privacy
+          </Link>
+        </div>
+
+        {/* Right - Social */}
+        <div className="flex items-center gap-4">
+          <a
+            href="https://x.com/leapfun"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-primary transition-colors"
+            aria-label="X"
+          >
+            <XIcon className="w-4 h-4" />
+          </a>
+          <a
+            href="https://t.me/leap_fun"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-primary transition-colors"
+            aria-label="Telegram"
+          >
+            <Send className="w-4 h-4" />
+          </a>
+        </div>
+      </div>
+    </footer>
+  )
+}

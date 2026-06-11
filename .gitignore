@@ -1,0 +1,24 @@
+.env
+.env.local
+*.log
+logs/
+tmp/
+.idea/
+.vscode/
+*.exe
+*.test
+vendor/
+dist/
+bin/
+
+# Backend
+backend/bin/
+backend/.env
+
+# Web
+.git/
+web/.next/
+web/tsconfig.tsbuildinfo
+
+# Database / local
+database/.env
