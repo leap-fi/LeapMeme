@@ -112,4 +112,6 @@ func InitEnv() {
 	CriticalRateLimitDuration = int64(GetEnvOrDefault("CRITICAL_RATE_LIMIT_DURATION", int(CriticalRateLimitDuration)))
 
 	OptionMap = make(map[string]string)
+
+	loadChainEnv()
 }

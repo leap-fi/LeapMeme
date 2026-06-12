@@ -47,4 +47,5 @@ func registerPublicRoutes(api *gin.RouterGroup) {
 
 func registerMarketRoutes(market *gin.RouterGroup) {
 	market.GET("/trade/latest", controller.ListLatestTrades)
+	market.GET("/token/trades", controller.ListTokenTrades)
 }

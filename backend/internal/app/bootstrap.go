@@ -42,8 +42,11 @@ func InitResources() error {
 		common.SysLog("system not initialized — call POST /api/v1/setup/init")
 	}
 
-	// 注册默认定时任务，在 bootstrap 里注册了两个：sync_options、heartbeat
+	// 注册默认定时任务：sync_options、heartbeat、chain_indexer（INDEXER_ENABLED=true 时）
 	job.RegisterDefaultJobs()
+	if common.IndexerEnabled {
+		common.SysLog("chain indexer enabled (Zap " + common.ZapAddress + ")")
+	}
 	return nil
 }
 

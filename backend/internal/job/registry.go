@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leap/backend/common"
+	"github.com/leap/backend/internal/indexer"
 	"github.com/leap/backend/internal/model"
 	"github.com/leap/backend/setting"
 )
@@ -30,14 +31,16 @@ func (r *Registry) Start(ctx context.Context) {
 	for _, job := range r.jobs {
 		j := job
 		go func() {
-			ticker := time.NewTicker(j.Interval())
-			defer ticker.Stop()
+			ticker := time.NewTicker(j.Interval()) // 定时器，每隔一段时间执行一次
+			defer ticker.Stop()                    // 停止定时器
 			for {
-				// main.go 里 cancel() ，这里才能执行ctx.Done()（否则会因为channel阻塞），会退出循环，从而退出 goroutine
+				// ctx.Done() 与 main.go 里 cancel() 是配套的
+				// 注意：同一个 job 只有一个 goroutine，j.Run(ctx) 会一直阻塞到 job 跑完，循环才回到 select
+				// RunOnce 结束 → 回到 select 若 channel 里有一个积压的 tick，可能马上再跑一批
 				select {
-				case <-ctx.Done():
+				case <-ctx.Done(): // 主线程退出，这里会退出循环，从而退出 goroutine
 					return
-				case <-ticker.C:
+				case <-ticker.C: // 定时器触发，执行任务
 					if err := j.Run(ctx); err != nil {
 						common.SysError(j.Name() + ": " + err.Error())
 					}
@@ -94,5 +97,10 @@ func (HeartbeatJob) Run(ctx context.Context) error {
 func RegisterDefaultJobs() {
 	DefaultRegistry.Register(SyncOptionsJob{})
 	DefaultRegistry.Register(HeartbeatJob{})
+
+	cfg := indexer.LoadConfig()
+	if cfg.Enabled() {
+		DefaultRegistry.Register(&ChainIndexerJob{})
+	}
 	// ... 后续可以在这里注册其他 job
 }
