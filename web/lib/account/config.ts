@@ -1,4 +1,4 @@
-/** Account API base URL — see doc/leap-account-en.md */
+/** Account API base URL — awsToken 等走线上，与本地 meme-server 分离 */
 export const ACCOUNT_API_BASE_URL = (
-  process.env.NEXT_PUBLIC_MEME_SERVER_BASE_URL ?? 'https://api-pre.leap.fun'
+  process.env.NEXT_PUBLIC_ACCOUNT_API_BASE_URL ?? 'https://api.leap.fun'
 ).replace(/\/$/, '')

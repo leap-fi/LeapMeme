@@ -43,6 +43,7 @@ type TokenNewResponse struct {
 	IsLong                *bool   `json:"isLong,omitempty"`
 	Direction             *string `json:"direction,omitempty"`
 	PriceChangePercent24h *string `json:"priceChangePercent24h,omitempty"`
+	Market                *string `json:"market,omitempty"`
 	Bonding               *string `json:"bonding,omitempty"`
 	Zap                   *string `json:"zap,omitempty"`
 	Router                *string `json:"router,omitempty"`

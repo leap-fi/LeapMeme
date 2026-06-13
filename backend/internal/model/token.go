@@ -46,6 +46,7 @@ func (Token) TableName() string { return "tokens" }
 
 type TokenListFilter struct {
 	Type      string
+	Search    string
 	Market    string
 	Leverage  string
 	Direction string
@@ -131,6 +132,13 @@ func ListTokens(filter TokenListFilter) ([]Token, error) {
 		)
 	}
 
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		like := "%" + strings.ToLower(search) + "%"
+		q = q.Where(
+			"LOWER(address) LIKE ? OR LOWER(symbol) LIKE ? OR LOWER(name) LIKE ?",
+			like, like, like,
+		)
+	}
 	if market := strings.TrimSpace(filter.Market); market != "" && !strings.EqualFold(market, "all") {
 		like := "%" + strings.ToLower(market) + "%"
 		q = q.Where("LOWER(target_asset) LIKE ? OR LOWER(symbol) LIKE ?", like, like)

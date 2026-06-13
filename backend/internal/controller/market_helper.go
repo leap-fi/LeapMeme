@@ -12,6 +12,9 @@ func failMarketError(c *gin.Context, err error) {
 		if code == 0 {
 			code = 1
 		}
+		if ae.HTTPStatus == 404 {
+			code = 404
+		}
 		response.MemeFail(c, code, ae.Message)
 		return
 	}
