@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/leap/backend/internal/controller"
+	"github.com/leap/backend/internal/kline"
 	"github.com/leap/backend/internal/middleware"
 )
 
@@ -30,6 +31,7 @@ func Setup(engine *gin.Engine) {
 
 	market := engine.Group("/market")
 	registerMarketRoutes(market)
+	registerKlineRoutes(engine)
 	registerAccountRoutes(engine)
 }
 
@@ -59,6 +61,15 @@ func registerMarketRoutes(market *gin.RouterGroup) {
 		user.GET("/created", controller.ListUserCreatedTokens)
 		user.GET("/positions", controller.ListUserPositions)
 		user.GET("/rewards", controller.ListUserRewards)
+	}
+}
+
+func registerKlineRoutes(engine *gin.Engine) {
+	market := engine.Group("/market")
+	market.GET("/kline/list", controller.ListKlines)
+	market.POST("/kline/backfill", controller.BackfillKlines)
+	if eng := kline.Default(); eng != nil {
+		engine.GET("/ws/kline", kline.HandleWS(eng))
 	}
 }
 

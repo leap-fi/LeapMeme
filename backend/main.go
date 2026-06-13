@@ -14,6 +14,7 @@ import (
 	"github.com/leap/backend/common"
 	"github.com/leap/backend/internal/app"
 	"github.com/leap/backend/internal/job"
+	"github.com/leap/backend/internal/kline"
 	"github.com/leap/backend/internal/model"
 	"github.com/leap/backend/internal/router"
 )
@@ -37,6 +38,9 @@ func main() {
 	if common.EnableJobs {
 		job.DefaultRegistry.Start(ctx)
 	}
+
+	kline.InitDefault()
+	common.SysLog("kline engine started")
 
 	server := gin.New()
 	store := cookie.NewStore([]byte(common.SessionSecret))
@@ -74,6 +78,11 @@ func main() {
 	defer shutdownCancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		common.SysError("http shutdown: " + err.Error())
+	}
+	if eng := kline.Default(); eng != nil {
+		if err := eng.Shutdown(); err != nil {
+			common.SysError("kline shutdown: " + err.Error())
+		}
 	}
 	cancel()
 }

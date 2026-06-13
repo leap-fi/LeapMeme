@@ -74,6 +74,52 @@ func GetTradesByTokenAddress(tokenAddress string) ([]Trade, error) {
 	return trades, nil
 }
 
+// ListTradesByTokenAsc returns trades for kline backfill (ascending by id).
+func ListTradesByTokenAsc(tokenAddress string, afterID int64, limit int) ([]Trade, error) {
+	tokenAddress = strings.ToLower(strings.TrimSpace(tokenAddress))
+	if tokenAddress == "" {
+		return []Trade{}, nil
+	}
+	if limit < 1 {
+		limit = 5000
+	}
+	if limit > 20000 {
+		limit = 20000
+	}
+	var trades []Trade
+	q := DB.Where("LOWER(token_address) = ?", tokenAddress)
+	if afterID > 0 {
+		q = q.Where("id > ?", afterID)
+	}
+	if err := q.Order("id ASC").Limit(limit).Find(&trades).Error; err != nil {
+		return nil, err
+	}
+	return trades, nil
+}
+
+// ListDistinctTradeTokenAddresses returns all token addresses seen in trades.
+func ListDistinctTradeTokenAddresses() ([]string, error) {
+	var addresses []string
+	err := DB.Model(&Trade{}).
+		Distinct("LOWER(token_address)").
+		Pluck("LOWER(token_address)", &addresses).Error
+	if err != nil {
+		return nil, err
+	}
+	return addresses, nil
+}
+
+// TokenHasTrades checks whether trades exist for a token address.
+func TokenHasTrades(tokenAddress string) (bool, error) {
+	tokenAddress = strings.ToLower(strings.TrimSpace(tokenAddress))
+	if tokenAddress == "" {
+		return false, nil
+	}
+	var count int64
+	err := DB.Model(&Trade{}).Where("LOWER(token_address) = ?", tokenAddress).Limit(1).Count(&count).Error
+	return count > 0, err
+}
+
 // TokenVolumeStats aggregates trade volume for token list endpoints.
 type TokenVolumeStats struct {
 	TokenAddress   string

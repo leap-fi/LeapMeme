@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -133,14 +134,87 @@ func (s *Scanner) enrichToken(ctx context.Context, token *model.Token, launch *l
 		}
 	}
 
-	if graduated, err := s.readIsGraduated(ctx, tokenAddr); err == nil && graduated {
-		token.Status = "GRADUATED"
-		token.BondingCurveProgress = "100"
-		if token.GraduatedAt == 0 {
-			token.GraduatedAt = token.CreatedAt
-		}
+	s.syncTokenGraduation(ctx, token, tokenAddr)
+
+	return nil
+}
+
+// ensureTokenRecord creates or refreshes a token row before trade indexing.
+// Tokens created before INDEXER_START_BLOCK only appear as trades until this runs.
+func (s *Scanner) ensureTokenRecord(ctx context.Context, tokenAddr ethcommon.Address, block *types.Block) error {
+	addr := strings.ToLower(tokenAddr.Hex())
+	existing, err := model.GetTokenByAddress(addr)
+	if err != nil {
+		return err
 	}
 
+	blockTime := time.Now().UnixMilli()
+	var blockNum uint64
+	if block != nil {
+		blockTime = int64(block.Time()) * 1000
+		blockNum = block.NumberU64()
+	}
+
+	if existing != nil {
+		s.syncTokenGraduation(ctx, existing, tokenAddr)
+		return model.UpsertToken(existing)
+	}
+
+	symbol, name := s.readTokenMeta(ctx, tokenAddr)
+	token := &model.Token{
+		Address:     addr,
+		Symbol:      symbol,
+		Name:        name,
+		Status:      "TRADING",
+		CreatedAt:   blockTime,
+		BlockNumber: blockNum,
+	}
+	if len(s.zapAddrs) > 0 {
+		token.ZapAddress = strings.ToLower(s.zapAddrs[0].Hex())
+	}
+	if err := s.enrichToken(ctx, token, nil); err != nil {
+		common.SysError(fmt.Sprintf("indexer enrich token %s: %v", addr, err))
+	}
+	return model.UpsertToken(token)
+}
+
+func (s *Scanner) syncTokenGraduation(ctx context.Context, token *model.Token, tokenAddr ethcommon.Address) {
+	if token == nil {
+		return
+	}
+	switch strings.ToUpper(strings.TrimSpace(token.Status)) {
+	case "GRADUATED", "COMPLETED", "MIGRATED":
+		return
+	}
+	graduated, err := s.readIsGraduated(ctx, tokenAddr)
+	if err != nil || !graduated {
+		return
+	}
+	token.Status = "GRADUATED"
+	token.BondingCurveProgress = "100"
+	if token.GraduatedAt == 0 {
+		token.GraduatedAt = token.CreatedAt
+		if token.GraduatedAt == 0 {
+			token.GraduatedAt = time.Now().UnixMilli()
+		}
+	}
+}
+
+// BackfillMissingTokens indexes token rows for addresses seen in trades but missing in tokens.
+func (s *Scanner) BackfillMissingTokens(ctx context.Context) error {
+	addresses, err := model.ListTradeTokenAddressesMissing()
+	if err != nil {
+		return err
+	}
+	for _, raw := range addresses {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		if err := s.ensureTokenRecord(ctx, ethcommon.HexToAddress(raw), nil); err != nil {
+			common.SysError(fmt.Sprintf("indexer backfill token %s: %v", raw, err))
+		}
+	}
 	return nil
 }
 

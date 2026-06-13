@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -10,8 +11,9 @@ import (
 )
 
 type ChainIndexerJob struct {
-	mu      sync.Mutex
-	scanner *indexer.Scanner
+	mu           sync.Mutex
+	scanner      *indexer.Scanner
+	backfillOnce sync.Once
 }
 
 func (ChainIndexerJob) Name() string { return "chain_indexer" }
@@ -41,6 +43,12 @@ func (j *ChainIndexerJob) Run(ctx context.Context) error {
 	}
 	scanner := j.scanner
 	j.mu.Unlock()
+
+	j.backfillOnce.Do(func() {
+		if err := scanner.BackfillMissingTokens(ctx); err != nil {
+			common.SysError(fmt.Sprintf("chain_indexer backfill tokens: %v", err))
+		}
+	})
 
 	return scanner.RunOnce(ctx)
 }

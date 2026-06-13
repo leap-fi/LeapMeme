@@ -102,6 +102,20 @@ func GetTokenByAddress(address string) (*Token, error) {
 	return &token, nil
 }
 
+func ListTradeTokenAddressesMissing() ([]string, error) {
+	var addresses []string
+	err := DB.Raw(`
+		SELECT DISTINCT LOWER(t.token_address) AS address
+		FROM trades t
+		LEFT JOIN tokens tk ON LOWER(tk.address) = LOWER(t.token_address)
+		WHERE tk.address IS NULL
+	`).Scan(&addresses).Error
+	if err != nil {
+		return nil, err
+	}
+	return addresses, nil
+}
+
 func GetTokensByCreator(creator string) ([]Token, error) {
 	creator = strings.TrimSpace(creator)
 	if creator == "" {

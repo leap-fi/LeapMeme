@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/leap/backend/common"
+	"github.com/leap/backend/internal/kline"
 	"github.com/leap/backend/internal/model"
 )
 
@@ -328,6 +329,10 @@ func (s *Scanner) processTradeTx(
 		return nil
 	}
 
+	if err := s.ensureTokenRecord(ctx, tokenAddr, block); err != nil {
+		common.SysError(fmt.Sprintf("indexer ensure token %s: %v", tokenAddr.Hex(), err))
+	}
+
 	amount := formatTokenAmount(amountRaw, 18)
 	volume := formatTokenAmount(volumeRaw, 6)
 	price := calcPrice(volume, amount)
@@ -352,6 +357,10 @@ func (s *Scanner) processTradeTx(
 	// 插入交易
 	if err := model.InsertTradeIgnoreDuplicate(trade); err != nil {
 		return err
+	}
+
+	if eng := kline.Default(); eng != nil {
+		eng.OnTrade(trade)
 	}
 
 	buyDelta := 0.0
