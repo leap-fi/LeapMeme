@@ -73,3 +73,66 @@ func GetTradesByTokenAddress(tokenAddress string) ([]Trade, error) {
 	}
 	return trades, nil
 }
+
+// TokenVolumeStats aggregates trade volume for token list endpoints.
+type TokenVolumeStats struct {
+	TokenAddress  string
+	TotalVolume   float64
+	Volume24h     float64
+	TradeCount    int64
+	TradeCount24h int64
+}
+
+func GetTradeVolumeStatsByTokens(addresses []string) (map[string]TokenVolumeStats, error) {
+	out := make(map[string]TokenVolumeStats)
+	if len(addresses) == 0 {
+		return out, nil
+	}
+
+	normalized := make([]string, 0, len(addresses))
+	for _, addr := range addresses {
+		addr = strings.TrimSpace(addr)
+		if addr != "" {
+			normalized = append(normalized, strings.ToLower(addr))
+		}
+	}
+	if len(normalized) == 0 {
+		return out, nil
+	}
+
+	since24h := time.Now().Add(-24 * time.Hour).UnixMilli()
+
+	type row struct {
+		TokenAddress  string
+		TotalVolume   float64
+		Volume24h     float64
+		TradeCount    int64
+		TradeCount24h int64
+	}
+	var rows []row
+	err := DB.Model(&Trade{}).
+		Select(`
+			LOWER(token_address) AS token_address,
+			COALESCE(SUM(CAST(volume AS DECIMAL(36,18))), 0) AS total_volume,
+			COALESCE(SUM(CASE WHEN trade_time >= ? THEN CAST(volume AS DECIMAL(36,18)) ELSE 0 END), 0) AS volume24h,
+			COUNT(*) AS trade_count,
+			COALESCE(SUM(CASE WHEN trade_time >= ? THEN 1 ELSE 0 END), 0) AS trade_count24h`,
+			since24h, since24h).
+		Where("LOWER(token_address) IN ?", normalized).
+		Group("LOWER(token_address)").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, r := range rows {
+		out[strings.ToLower(r.TokenAddress)] = TokenVolumeStats{
+			TokenAddress:  r.TokenAddress,
+			TotalVolume:   r.TotalVolume,
+			Volume24h:     r.Volume24h,
+			TradeCount:    r.TradeCount,
+			TradeCount24h: r.TradeCount24h,
+		}
+	}
+	return out, nil
+}

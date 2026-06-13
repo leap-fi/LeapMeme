@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -49,4 +50,21 @@ func GetTokenByAddress(address string) (*Token, error) {
 		return nil, err
 	}
 	return &token, nil
+}
+
+func GetTokensByCreator(creator string) ([]Token, error) {
+	creator = strings.TrimSpace(creator)
+	if creator == "" {
+		return []Token{}, nil
+	}
+	var tokens []Token
+
+	// SELECT * FROM tokens WHERE LOWER(creator) = LOWER('0x你的钱包地址') ORDER BY created_at DESC
+	err := DB.Where("LOWER(creator) = LOWER(?)", creator).
+		Order("created_at DESC").
+		Find(&tokens).Error
+	if err != nil {
+		return nil, err
+	}
+	return tokens, nil
 }
