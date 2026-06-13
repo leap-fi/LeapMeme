@@ -90,14 +90,12 @@ forge script script/DeployZap.s.sol --rpc-url $RPC_URL --broadcast
 
 ---
 
-## 已部署地址
+## 已部署地址（alt.fun 生产）
 
 | 合约 | 地址 |
 |---|---|
-| `Bonding`  | `0x3d968edbed8c953C814FE7Ad207705525189D13A` |
-| `Zap`      | `0x5f66E5Ec4ec9F045E10a580e7bA1147b0c650E45` |
-| `Factory`  | `0x6F6Fd31838cea254b032A5a24d350e0683382357` |
-| `Router`   | `0xf1e943a1b78ac7F0976beC79c5F74C4B30C5646b` |
-| `FeeVault` | `0x2B7fB3857B26654609E4d36db3876c61EECA50DC` |
-| `LPLock`   | `0x5cF3D0147Fe93b820444C7D03fD00fce91811b6a` |
-| `Token`（实现合约） | `0x7a680a5330CAB3D322192220d7FD70c668AD6EE5` |
+| `Zap` | `0x693f12e9e6b35b34458793546065e8b08e0299d6` |
+| `Router` | `0x70c7eC6f85B960379b7ee60Af72E0f419d915878` |
+| `Bonding` | `0xb68811BcC0e4FcD825aA49F9453b065ddF752FcB` |
+| `USDC` | `0xb88339CB7199b77E23DB6E890353E22632Ba630f` |
+| `CreatorRewards` | `0xb4894380282533A86cb241145fac54AaAc995F18` |

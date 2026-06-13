@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/leap/backend/common"
 	"github.com/leap/backend/internal/model"
 )
 
@@ -105,7 +106,9 @@ func (s *Scanner) enrichToken(ctx context.Context, token *model.Token, launch *l
 	if s.cfg.BondingAddress != "" {
 		token.BondingAddress = strings.ToLower(s.cfg.BondingAddress)
 	}
-	if s.cfg.RouterAddress != "" {
+	if zap := strings.TrimSpace(token.ZapAddress); zap != "" {
+		token.RouterAddress = strings.ToLower(common.RouterForZap(zap))
+	} else if s.cfg.RouterAddress != "" {
 		token.RouterAddress = strings.ToLower(s.cfg.RouterAddress)
 	}
 

@@ -117,28 +117,6 @@ async function mapCreatedTokenItems(
   )
 }
 
-function mergeUserRewardRows(items: UserRewardDto[]): UserRewardDto[] {
-  const byAddress = new Map<string, UserRewardDto>()
-  for (const item of items) {
-    const key = item.address?.trim().toLowerCase()
-    if (!key) continue
-    const existing = byAddress.get(key)
-    if (!existing) {
-      byAddress.set(key, item)
-      continue
-    }
-    byAddress.set(key, {
-      ...existing,
-      tradeVolume24h: Math.max(
-        toNumber(existing.tradeVolume24h),
-        toNumber(item.tradeVolume24h),
-      ),
-      accruedAmount: toNumber(existing.accruedAmount) + toNumber(item.accruedAmount),
-    })
-  }
-  return Array.from(byAddress.values())
-}
-
 function mapUserRewardItems(items: UserRewardDto[]): ProfileRewardTokenItem[] {
   return items.map((item) => {
     const rawAddress = item.address?.trim() || ''
@@ -158,11 +136,8 @@ function mapUserRewardItems(items: UserRewardDto[]): ProfileRewardTokenItem[] {
 async function loadUserRewardTokenItems(
   account: string,
 ): Promise<ProfileRewardTokenItem[]> {
-  const [altRows, leapRows] = await Promise.all([
-    getUserRewards(account, CONTRACTS.creatorRewards),
-    getUserRewards(account, CONTRACTS.leapCreatorRewards),
-  ])
-  return mapUserRewardItems(mergeUserRewardRows([...altRows, ...leapRows]))
+  const rows = await getUserRewards(account, CONTRACTS.creatorRewards)
+  return mapUserRewardItems(rows)
 }
 
 export function ProfilePagePrivy() {
@@ -447,10 +422,7 @@ export function ProfilePagePrivy() {
       rewardTokens={rewardTokens}
       rewardTokensLoading={rewardTokensLoading}
       rewardTokensError={rewardTokensError}
-      creatorRewardsAltClaimable={creatorRewards.altClaimableText}
-      creatorRewardsLeapClaimable={creatorRewards.leapClaimableText}
-      creatorRewardsAltClaiming={creatorRewards.altTxState.status === 'claiming'}
-      creatorRewardsLeapClaiming={creatorRewards.leapTxState.status === 'claiming'}
+      creatorRewardsClaiming={creatorRewards.txState.status === 'claiming'}
       creatorRewardsTxStatus={creatorRewards.txState.status}
       creatorRewardsTxMessage={
         creatorRewards.txState.status === 'error' ? creatorRewards.txState.message : null
@@ -463,13 +435,9 @@ export function ProfilePagePrivy() {
       creatorRewardsPreviouslyClaimed={creatorRewards.previouslyClaimedText}
       creatorRewardsLoading={creatorRewards.loading}
       creatorRewardsError={creatorRewards.error}
-      onClaimCreatorRewardsAlt={() => {
+      onClaimCreatorRewards={() => {
         // Error/cancel is already surfaced via txState; swallow to avoid unhandled rejection.
-        void creatorRewards.claimAlt().catch(() => {})
-      }}
-      onClaimCreatorRewardsLeap={() => {
-        // Error/cancel is already surfaced via txState; swallow to avoid unhandled rejection.
-        void creatorRewards.claimLeap().catch(() => {})
+        void creatorRewards.claim().catch(() => {})
       }}
       onDismissCreatorRewardsTxModal={creatorRewards.resetTxState}
       transferCreatorTransferring={transferCreator.transferring}

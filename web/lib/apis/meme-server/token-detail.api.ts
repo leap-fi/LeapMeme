@@ -53,7 +53,6 @@ export interface TokenDetailDto {
 
 const ZAP_TO_ROUTER_MAP: Record<string, `0x${string}`> = {
   '0x693f12e9e6b35b34458793546065e8b08e0299d6': '0x70c7eC6f85B960379b7ee60Af72E0f419d915878',
-  '0x5f66e5ec4ec9f045e10a580e7ba1147b0c650e45': '0xf1e943a1b78ac7F0976beC79c5F74C4B30C5646b',
 }
 
 export async function getTokenDetail(address: string): Promise<TokenDetailDto> {

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/leap/backend/common"
@@ -45,7 +46,7 @@ func InitResources() error {
 	// 注册默认定时任务：sync_options、heartbeat、chain_indexer（INDEXER_ENABLED=true 时）
 	job.RegisterDefaultJobs()
 	if common.IndexerEnabled {
-		common.SysLog("chain indexer enabled (Zap " + common.ZapAddress + ")")
+		common.SysLog("chain indexer enabled (zaps: " + strings.Join(common.ZapAddresses, ", ") + ")")
 	}
 	return nil
 }

@@ -133,17 +133,13 @@ export type ProfilePageViewProps = {
   creatorRewardsClaimable?: string
   creatorRewardsTotalEarned?: string
   creatorRewardsPreviouslyClaimed?: string
-  creatorRewardsAltClaimable?: string
-  creatorRewardsLeapClaimable?: string
   creatorRewardsLoading?: boolean
   creatorRewardsError?: string | null
-  creatorRewardsAltClaiming?: boolean
-  creatorRewardsLeapClaiming?: boolean
+  creatorRewardsClaiming?: boolean
   creatorRewardsTxStatus?: 'idle' | 'claiming' | 'success' | 'error'
   creatorRewardsTxMessage?: string | null
   creatorRewardsClaimTxHash?: string | null
-  onClaimCreatorRewardsAlt?: () => void
-  onClaimCreatorRewardsLeap?: () => void
+  onClaimCreatorRewards?: () => void
   onDismissCreatorRewardsTxModal?: () => void
   transferCreatorTransferring?: boolean
   transferCreatorTxStatus?: 'idle' | 'transferring' | 'success' | 'error'
@@ -179,17 +175,13 @@ export function ProfilePageView({
   creatorRewardsClaimable = '0.00',
   creatorRewardsTotalEarned = '0.00',
   creatorRewardsPreviouslyClaimed = '0.00',
-  creatorRewardsAltClaimable = '0.00',
-  creatorRewardsLeapClaimable = '0.00',
   creatorRewardsLoading = false,
   creatorRewardsError = null,
-  creatorRewardsAltClaiming = false,
-  creatorRewardsLeapClaiming = false,
+  creatorRewardsClaiming = false,
   creatorRewardsTxStatus = 'idle',
   creatorRewardsTxMessage = null,
   creatorRewardsClaimTxHash = null,
-  onClaimCreatorRewardsAlt,
-  onClaimCreatorRewardsLeap,
+  onClaimCreatorRewards,
   onDismissCreatorRewardsTxModal,
   transferCreatorTransferring = false,
   transferCreatorTxStatus = 'idle',
@@ -357,17 +349,13 @@ export function ProfilePageView({
             claimable={creatorRewardsClaimable}
             totalEarned={creatorRewardsTotalEarned}
             previouslyClaimed={creatorRewardsPreviouslyClaimed}
-            altClaimable={creatorRewardsAltClaimable}
-            leapClaimable={creatorRewardsLeapClaimable}
             rewardsLoading={creatorRewardsLoading}
             rewardsError={creatorRewardsError}
-            altClaiming={creatorRewardsAltClaiming}
-            leapClaiming={creatorRewardsLeapClaiming}
+            claiming={creatorRewardsClaiming}
             txStatus={creatorRewardsTxStatus}
             txMessage={creatorRewardsTxMessage}
             claimTxHash={creatorRewardsClaimTxHash}
-            onClaimAlt={onClaimCreatorRewardsAlt}
-            onClaimLeap={onClaimCreatorRewardsLeap}
+            onClaim={onClaimCreatorRewards}
             onDismissTxModal={onDismissCreatorRewardsTxModal}
           />
         )}
@@ -684,17 +672,13 @@ function CreatorRewardsTab({
   claimable,
   totalEarned,
   previouslyClaimed,
-  altClaimable,
-  leapClaimable,
   rewardsLoading,
   rewardsError,
-  altClaiming,
-  leapClaiming,
+  claiming,
   txStatus,
   txMessage,
   claimTxHash,
-  onClaimAlt,
-  onClaimLeap,
+  onClaim,
   onDismissTxModal,
 }: {
   authenticated: boolean
@@ -704,33 +688,21 @@ function CreatorRewardsTab({
   claimable: string
   totalEarned: string
   previouslyClaimed: string
-  altClaimable: string
-  leapClaimable: string
   rewardsLoading: boolean
   rewardsError: string | null
-  altClaiming: boolean
-  leapClaiming: boolean
+  claiming: boolean
   txStatus: 'idle' | 'claiming' | 'success' | 'error'
   txMessage: string | null
   claimTxHash: string | null
-  onClaimAlt?: () => void
-  onClaimLeap?: () => void
+  onClaim?: () => void
   onDismissTxModal?: () => void
 }) {
   const router = useRouter()
-  const altClaimableNumber = Number.parseFloat(altClaimable.replace(/,/g, '')) || 0
-  const leapClaimableNumber = Number.parseFloat(leapClaimable.replace(/,/g, '')) || 0
-  const canClaimAlt =
-    authenticated && altClaimableNumber > 0 && !rewardsLoading && !altClaiming
-  const canClaimLeap =
-    authenticated && leapClaimableNumber > 0 && !rewardsLoading && !leapClaiming
+  const claimableNumber = Number.parseFloat(claimable.replace(/,/g, '')) || 0
+  const canClaim =
+    authenticated && claimableNumber > 0 && !rewardsLoading && !claiming
   const claimableLabel = `$${claimable}`
-  const altClaimButtonLabel = altClaiming
-    ? 'Claiming...'
-    : `ALT Claim $${altClaimable} USDC`
-  const leapClaimButtonLabel = leapClaiming
-    ? 'Claiming...'
-    : `LEAP Claim $${leapClaimable} USDC`
+  const claimButtonLabel = claiming ? 'Claiming...' : `Claim $${claimable} USDC`
   const showTxModal = txStatus !== 'idle'
   const isPending = txStatus === 'claiming'
   const showNoTokensEmptyState =
@@ -784,21 +756,12 @@ function CreatorRewardsTab({
         <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:justify-center">
           <button
             type="button"
-            disabled={!canClaimAlt}
-            onClick={onClaimAlt}
+            disabled={!canClaim}
+            onClick={onClaim}
             className="w-full sm:w-auto px-8 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
           >
-            {altClaiming && <Loader2 className="h-4 w-4 animate-spin" />}
-            {altClaimButtonLabel}
-          </button>
-          <button
-            type="button"
-            disabled={!canClaimLeap}
-            onClick={onClaimLeap}
-            className="w-full sm:w-auto px-8 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
-          >
-            {leapClaiming && <Loader2 className="h-4 w-4 animate-spin" />}
-            {leapClaimButtonLabel}
+            {claiming && <Loader2 className="h-4 w-4 animate-spin" />}
+            {claimButtonLabel}
           </button>
         </div>
         {rewardsError && <p className="mt-3 text-sm text-destructive">{rewardsError}</p>}

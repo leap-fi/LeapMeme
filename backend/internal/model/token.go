@@ -27,6 +27,7 @@ type Token struct {
 	LtAddress            string `gorm:"size:42;column:lt_address"`
 	BondingAddress       string `gorm:"size:42;column:bonding_address"`
 	RouterAddress        string `gorm:"size:42;column:router_address"`
+	ZapAddress           string `gorm:"size:42;column:zap_address"`
 	TargetAsset          string `gorm:"size:128;column:target_asset"`
 	TargetLeverage       *int   `gorm:"column:target_leverage"`
 	IsLong               *bool  `gorm:"column:is_long"`
@@ -76,7 +77,7 @@ func UpsertToken(token *Token) error {
 		Columns: []clause.Column{{Name: "address"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"symbol", "name", "logo", "description", "twitter", "telegram", "website",
-			"creator", "lt_address", "bonding_address", "router_address",
+			"creator", "lt_address", "bonding_address", "router_address", "zap_address",
 			"target_asset", "target_leverage", "is_long",
 			"total_supply", "last_price", "market_cap",
 			"bonding_curve_volume", "bonding_curve_progress", "graduated_at",

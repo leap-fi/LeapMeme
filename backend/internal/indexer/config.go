@@ -9,7 +9,7 @@ import (
 type Config struct {
 	RPCURL          string
 	ChainID         int64
-	ZapAddress      string
+	ZapAddresses    []string
 	BondingAddress  string
 	RouterAddress   string
 	USDCAddress     string
@@ -23,7 +23,7 @@ func LoadConfig() Config {
 	return Config{
 		RPCURL:          strings.TrimSpace(common.ChainRPCURL),
 		ChainID:         int64(common.ChainID),
-		ZapAddress:      strings.TrimSpace(common.ZapAddress),
+		ZapAddresses:    append([]string(nil), common.ZapAddresses...),
 		BondingAddress:  strings.TrimSpace(common.BondingAddress),
 		RouterAddress:   strings.TrimSpace(common.RouterAddress),
 		USDCAddress:     strings.TrimSpace(common.USDCAddress),
@@ -35,5 +35,5 @@ func LoadConfig() Config {
 }
 
 func (c Config) Enabled() bool {
-	return common.IndexerEnabled && c.RPCURL != "" && c.ZapAddress != "" && c.USDCAddress != ""
+	return common.IndexerEnabled && c.RPCURL != "" && len(c.ZapAddresses) > 0 && c.USDCAddress != ""
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { creatorRewardsAbi, leapCreatorRewardsAbi } from '@/lib/contracts/abis'
+import { creatorRewardsAbi } from '@/lib/contracts/abis'
 import { publicClient } from '@/lib/contracts/client'
 import { hyperEvm } from '@/lib/contracts/chain'
 import { CONTRACTS, USDC_DECIMALS } from '@/lib/contracts/config'
@@ -11,7 +11,6 @@ type CreatorRewardsTxState =
   | { status: 'claiming' }
   | { status: 'success'; hash: `0x${string}` }
   | { status: 'error'; message: string }
-type RewardSource = 'alt' | 'leap'
 
 type Eip1193Provider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
@@ -64,15 +63,11 @@ export function useCreatorRewards(wallet: {
   getEthereumProvider?: () => Promise<unknown>
   type?: string
 } | null) {
-  const [altClaimableRaw, setAltClaimableRaw] = useState<bigint>(BigInt(0))
-  const [leapClaimableRaw, setLeapClaimableRaw] = useState<bigint>(BigInt(0))
-  const [altTotalEarnedRaw, setAltTotalEarnedRaw] = useState<bigint>(BigInt(0))
+  const [claimableRaw, setClaimableRaw] = useState<bigint>(BigInt(0))
+  const [totalEarnedRaw, setTotalEarnedRaw] = useState<bigint>(BigInt(0))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [altTxState, setAltTxState] = useState<CreatorRewardsTxState>({
-    status: 'idle',
-  })
-  const [leapTxState, setLeapTxState] = useState<CreatorRewardsTxState>({
+  const [txState, setTxState] = useState<CreatorRewardsTxState>({
     status: 'idle',
   })
 
@@ -80,9 +75,8 @@ export function useCreatorRewards(wallet: {
 
   const refresh = useCallback(async () => {
     if (!walletAddress) {
-      setAltClaimableRaw(BigInt(0))
-      setLeapClaimableRaw(BigInt(0))
-      setAltTotalEarnedRaw(BigInt(0))
+      setClaimableRaw(BigInt(0))
+      setTotalEarnedRaw(BigInt(0))
       setLoading(false)
       setError(null)
       return
@@ -91,7 +85,7 @@ export function useCreatorRewards(wallet: {
     setLoading(true)
     setError(null)
     try {
-      const [altClaimable, altTotalEarned, leapClaimable] = await Promise.all([
+      const [claimable, totalEarned] = await Promise.all([
         publicClient.readContract({
           address: CONTRACTS.creatorRewards,
           abi: creatorRewardsAbi,
@@ -104,20 +98,12 @@ export function useCreatorRewards(wallet: {
           functionName: 'lifetimeCreatorEarned',
           args: [walletAddress],
         }),
-        publicClient.readContract({
-          address: CONTRACTS.leapCreatorRewards,
-          abi: leapCreatorRewardsAbi,
-          functionName: 'creatorBalance',
-          args: [walletAddress],
-        }),
       ])
-      setAltClaimableRaw(altClaimable)
-      setAltTotalEarnedRaw(altTotalEarned)
-      setLeapClaimableRaw(leapClaimable)
+      setClaimableRaw(claimable)
+      setTotalEarnedRaw(totalEarned)
     } catch (e) {
-      setAltClaimableRaw(BigInt(0))
-      setLeapClaimableRaw(BigInt(0))
-      setAltTotalEarnedRaw(BigInt(0))
+      setClaimableRaw(BigInt(0))
+      setTotalEarnedRaw(BigInt(0))
       setError(e instanceof Error ? e.message : 'Failed to load creator rewards')
     } finally {
       setLoading(false)
@@ -132,16 +118,12 @@ export function useCreatorRewards(wallet: {
     return () => window.clearInterval(timer)
   }, [refresh])
 
-  const claimBySource = useCallback(async (source: RewardSource) => {
+  const claim = useCallback(async () => {
     if (!wallet || wallet.type !== 'ethereum' || !walletAddress || !wallet.getEthereumProvider) {
       throw new Error('Please connect wallet first.')
     }
-    const claimable = source === 'alt' ? altClaimableRaw : leapClaimableRaw
-    if (claimable <= BigInt(0)) return
+    if (claimableRaw <= BigInt(0)) return
 
-    const setTxState = source === 'alt' ? setAltTxState : setLeapTxState
-    const contractAddress =
-      source === 'alt' ? CONTRACTS.creatorRewards : CONTRACTS.leapCreatorRewards
     setTxState({ status: 'claiming' })
 
     try {
@@ -177,7 +159,7 @@ export function useCreatorRewards(wallet: {
         params: [
           {
             from: walletAddress,
-            to: contractAddress,
+            to: CONTRACTS.creatorRewards,
             data: '0x4e71d92d',
           },
         ],
@@ -193,35 +175,18 @@ export function useCreatorRewards(wallet: {
       setTxState({ status: 'error', message })
       throw e
     }
-  }, [wallet, walletAddress, altClaimableRaw, leapClaimableRaw, refresh])
-
-  const claimAlt = useCallback(() => claimBySource('alt'), [claimBySource])
-  const claimLeap = useCallback(() => claimBySource('leap'), [claimBySource])
+  }, [wallet, walletAddress, claimableRaw, refresh])
 
   const resetTxState = useCallback(() => {
-    setAltTxState({ status: 'idle' })
-    setLeapTxState({ status: 'idle' })
+    setTxState({ status: 'idle' })
   }, [])
 
-  const claimableRaw = useMemo(
-    () => altClaimableRaw + leapClaimableRaw,
-    [altClaimableRaw, leapClaimableRaw],
-  )
-  const totalEarnedRaw = useMemo(
-    () => altTotalEarnedRaw + leapClaimableRaw,
-    [altTotalEarnedRaw, leapClaimableRaw],
-  )
   const previouslyClaimedRaw = useMemo(() => {
     if (totalEarnedRaw <= claimableRaw) return BigInt(0)
     return totalEarnedRaw - claimableRaw
   }, [totalEarnedRaw, claimableRaw])
-  const txState = leapTxState.status !== 'idle' ? leapTxState : altTxState
 
   return {
-    altClaimableRaw,
-    leapClaimableRaw,
-    altClaimableText: toUsdcString(altClaimableRaw),
-    leapClaimableText: toUsdcString(leapClaimableRaw),
     claimableRaw,
     totalEarnedRaw,
     previouslyClaimedRaw,
@@ -230,13 +195,9 @@ export function useCreatorRewards(wallet: {
     previouslyClaimedText: toUsdcString(previouslyClaimedRaw),
     loading,
     error,
-    altTxState,
-    leapTxState,
     txState,
     resetTxState,
-    claim: claimAlt,
-    claimAlt,
-    claimLeap,
+    claim,
     refresh,
   }
 }

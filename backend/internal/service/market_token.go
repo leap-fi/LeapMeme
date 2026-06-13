@@ -86,16 +86,20 @@ func toTokenDetailResponse(token model.Token, stats model.TokenDetailStats) *dto
 		bonding := token.BondingAddress
 		resp.Bonding = &bonding
 	}
+	zapAddr := token.ZapAddress
+	if zapAddr == "" {
+		zapAddr = common.ZapAddress
+	}
+	if zapAddr != "" {
+		zap := zapAddr
+		resp.Zap = &zap
+	}
 	if token.RouterAddress != "" {
 		router := token.RouterAddress
 		resp.Router = &router
-	} else if common.RouterAddress != "" {
-		router := common.RouterAddress
+	} else if zapAddr != "" {
+		router := common.RouterForZap(zapAddr)
 		resp.Router = &router
-	}
-	if common.ZapAddress != "" {
-		zap := common.ZapAddress
-		resp.Zap = &zap
 	}
 	if token.TargetAsset != "" {
 		market := token.TargetAsset
@@ -301,19 +305,27 @@ func toTokenNewResponse(token model.Token, stats model.TokenVolumeStats) dto.Tok
 		resp.Bonding = &bonding
 	}
 
+	zapAddr := token.ZapAddress
+	if zapAddr == "" {
+		zapAddr = common.ZapAddress
+	}
+	if zapAddr != "" {
+		zap := zapAddr
+		resp.Zap = &zap
+	}
+	if token.RouterAddress != "" {
+		router := token.RouterAddress
+		resp.Router = &router
+	} else if zapAddr != "" {
+		router := common.RouterForZap(zapAddr)
+		resp.Router = &router
+	}
+
 	decimals := 18
 	resp.Decimals = &decimals
 
 	source := "zap"
 	resp.Source = &source
-	if common.ZapAddress != "" {
-		zap := common.ZapAddress
-		resp.Zap = &zap
-	}
-	if common.RouterAddress != "" {
-		router := common.RouterAddress
-		resp.Router = &router
-	}
 
 	if stats.TradeCount > 0 || stats.TotalVolume > 0 {
 		total := formatVolume(stats.TotalVolume)

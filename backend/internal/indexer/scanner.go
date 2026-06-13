@@ -16,13 +16,14 @@ import (
 )
 
 type Scanner struct {
-	client   *ethclient.Client
-	cfg      Config
-	zapABI   abi.ABI
-	erc20ABI abi.ABI
-	zapAddr  ethcommon.Address
-	usdcAddr ethcommon.Address
-	chainID  *big.Int
+	client    *ethclient.Client
+	cfg       Config
+	zapABI    abi.ABI
+	erc20ABI  abi.ABI
+	zapAddrs  []ethcommon.Address
+	zapSet    map[ethcommon.Address]struct{}
+	usdcAddr  ethcommon.Address
+	chainID   *big.Int
 }
 
 // NewScanner dials RPC and prepares contract bindings.
@@ -50,12 +51,31 @@ func NewScanner(cfg Config) (*Scanner, error) {
 		}
 	}
 
+	zapAddrs := make([]ethcommon.Address, 0, len(cfg.ZapAddresses))
+	zapSet := make(map[ethcommon.Address]struct{}, len(cfg.ZapAddresses))
+	for _, raw := range cfg.ZapAddresses {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		addr := ethcommon.HexToAddress(raw)
+		if _, ok := zapSet[addr]; ok {
+			continue
+		}
+		zapSet[addr] = struct{}{}
+		zapAddrs = append(zapAddrs, addr)
+	}
+	if len(zapAddrs) == 0 {
+		return nil, fmt.Errorf("no zap addresses configured")
+	}
+
 	return &Scanner{
 		client:   client,
 		cfg:      cfg,
 		zapABI:   zapABI,
 		erc20ABI: erc20ABI,
-		zapAddr:  ethcommon.HexToAddress(cfg.ZapAddress),
+		zapAddrs: zapAddrs,
+		zapSet:   zapSet,
 		usdcAddr: ethcommon.HexToAddress(cfg.USDCAddress),
 		chainID:  chainID,
 	}, nil
@@ -130,8 +150,10 @@ func (s *Scanner) processBlock(ctx context.Context, blockNum uint64) error {
 
 	// 处理交易
 	for _, tx := range block.Transactions() {
-		// 如果交易不是 zap 合约，则跳过
-		if tx.To() == nil || *tx.To() != s.zapAddr {
+		if tx.To() == nil {
+			continue
+		}
+		if _, ok := s.zapSet[*tx.To()]; !ok {
 			continue
 		}
 		// 如果交易数据长度小于4，则跳过
@@ -162,7 +184,7 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 	logs, err := s.client.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: block.Number(),
 		ToBlock:   block.Number(),
-		Addresses: []ethcommon.Address{s.zapAddr},
+		Addresses: s.zapAddrs,
 		Topics:    [][]ethcommon.Hash{{tokenCreatedTopic}},
 	})
 	if err != nil {
@@ -207,6 +229,7 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 			Name:        name,
 			Creator:     strings.ToLower(creator.Hex()),
 			LtAddress:   strings.ToLower(ltAddr.Hex()),
+			ZapAddress:  strings.ToLower(lg.Address.Hex()),
 			TxHash:      lg.TxHash.Hex(),
 			BlockNumber: block.NumberU64(),
 			Status:      "TRADING",

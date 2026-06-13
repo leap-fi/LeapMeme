@@ -443,23 +443,3 @@ export const creatorRewardsAbi = [
   },
 ] as const
 
-
-export const leapCreatorRewardsAbi = [
-  {
-    type: 'function',
-    name: 'creatorBalance',
-    stateMutability: 'view',
-    inputs: [{ name: 'creator', type: 'address' }],
-    outputs: [{ type: 'uint256' }],
-  },
-  {
-    type: 'function',
-    name: 'claim',
-    stateMutability: 'nonpayable',
-    inputs: [],
-    outputs: [],
-  },
-] as const
-
-
-
