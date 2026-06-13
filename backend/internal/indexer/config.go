@@ -7,14 +7,16 @@ import (
 )
 
 type Config struct {
-	RPCURL           string
-	ChainID          int64
-	ZapAddress       string
-	USDCAddress      string
-	StartBlock       uint64
-	BatchSize        uint64
-	Confirmations    uint64
-	PollIntervalSec  int
+	RPCURL          string
+	ChainID         int64
+	ZapAddress      string
+	BondingAddress  string
+	RouterAddress   string
+	USDCAddress     string
+	StartBlock      uint64
+	BatchSize       uint64
+	Confirmations   uint64
+	PollIntervalSec int
 }
 
 func LoadConfig() Config {
@@ -22,6 +24,8 @@ func LoadConfig() Config {
 		RPCURL:          strings.TrimSpace(common.ChainRPCURL),
 		ChainID:         int64(common.ChainID),
 		ZapAddress:      strings.TrimSpace(common.ZapAddress),
+		BondingAddress:  strings.TrimSpace(common.BondingAddress),
+		RouterAddress:   strings.TrimSpace(common.RouterAddress),
 		USDCAddress:     strings.TrimSpace(common.USDCAddress),
 		StartBlock:      common.IndexerStartBlock,
 		BatchSize:       common.IndexerBatchSize,

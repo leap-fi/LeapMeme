@@ -30,6 +30,7 @@ func Setup(engine *gin.Engine) {
 
 	market := engine.Group("/market")
 	registerMarketRoutes(market)
+	registerAccountRoutes(engine)
 }
 
 func registerSetupRoutes(api *gin.RouterGroup) {
@@ -48,9 +49,14 @@ func registerPublicRoutes(api *gin.RouterGroup) {
 func registerMarketRoutes(market *gin.RouterGroup) {
 	market.GET("/trade/latest", controller.ListLatestTrades)
 	market.GET("/token/trades", controller.ListTokenTrades)
+	market.GET("/token/tokens", controller.ListNewTokens)
 
 	user := market.Group("/user")
 	{
 		user.GET("/created", controller.ListUserCreatedTokens)
 	}
+}
+
+func registerAccountRoutes(engine *gin.Engine) {
+	engine.GET("/account/markets", controller.ListAccountMarkets)
 }

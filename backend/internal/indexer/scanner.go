@@ -171,7 +171,6 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 
 	blockTime := int64(block.Time()) * 1000
 	for _, lg := range logs {
-		// 如果 log 不完整（异常、脏数据、合约实现问题），Topics 可能少于 4 个。不检查就直接访问 Topics[3] 会 panic。
 		if len(lg.Topics) < 4 {
 			continue
 		}
@@ -179,12 +178,25 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 		creator := ethcommon.BytesToAddress(lg.Topics[2].Bytes())
 		ltAddr := ethcommon.BytesToAddress(lg.Topics[3].Bytes())
 
+		var launch *launchParamsDecoded
+		if tx, _, err := s.client.TransactionByHash(ctx, lg.TxHash); err == nil && tx != nil {
+			launch, _ = decodeLaunchParamsFromTx(s.zapABI, tx)
+		}
+
 		symbol, name := s.readTokenMeta(ctx, tokenAddr)
+		if launch != nil {
+			if launch.Ticker != "" {
+				symbol = strings.TrimSpace(launch.Ticker)
+			}
+			if launch.Name != "" {
+				name = strings.TrimSpace(launch.Name)
+			}
+		}
 		if existing, _ := model.GetTokenByAddress(strings.ToLower(tokenAddr.Hex())); existing != nil {
-			if existing.Symbol != "" {
+			if existing.Symbol != "" && (launch == nil || launch.Ticker == "") {
 				symbol = existing.Symbol
 			}
-			if existing.Name != "" {
+			if existing.Name != "" && (launch == nil || launch.Name == "") {
 				name = existing.Name
 			}
 		}
@@ -200,7 +212,9 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 			Status:      "TRADING",
 			CreatedAt:   blockTime,
 		}
-		// 插入或更新 token
+		if err := s.enrichToken(ctx, token, launch); err != nil {
+			common.SysError(fmt.Sprintf("indexer enrich token %s: %v", token.Address, err))
+		}
 		if err := model.UpsertToken(token); err != nil {
 			return err
 		}
@@ -313,7 +327,16 @@ func (s *Scanner) processTradeTx(
 		BlockNumber:  block.NumberU64(),
 	}
 	// 插入交易
-	return model.InsertTradeIgnoreDuplicate(trade)
+	if err := model.InsertTradeIgnoreDuplicate(trade); err != nil {
+		return err
+	}
+
+	buyDelta := 0.0
+	if side == "BUY" {
+		buyDelta = model.ParseDecimalString(volume)
+	}
+	_ = model.UpdateTokenAfterTrade(strings.ToLower(tokenAddr.Hex()), price, buyDelta)
+	return nil
 }
 
 func (s *Scanner) tokenDisplay(ctx context.Context, tokenAddr ethcommon.Address) (symbol, name string) {

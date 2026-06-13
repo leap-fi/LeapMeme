@@ -14,6 +14,10 @@ func ListUserCreatedTokens(account string) ([]dto.TokenNewResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	return mapTokensToResponses(tokens)
+}
+
+func mapTokensToResponses(tokens []model.Token) ([]dto.TokenNewResponse, error) {
 	if len(tokens) == 0 {
 		return []dto.TokenNewResponse{}, nil
 	}
@@ -42,9 +46,29 @@ func toTokenNewResponse(token model.Token, stats model.TokenVolumeStats) dto.Tok
 		Name:    token.Name,
 	}
 
+	if token.Logo != "" {
+		logo := token.Logo
+		resp.Logo = &logo
+	}
 	if token.Creator != "" {
 		creator := token.Creator
 		resp.Creator = &creator
+	}
+	if token.Description != "" {
+		desc := token.Description
+		resp.Description = &desc
+	}
+	if token.Twitter != "" {
+		tw := token.Twitter
+		resp.Twitter = &tw
+	}
+	if token.Telegram != "" {
+		tg := token.Telegram
+		resp.Telegram = &tg
+	}
+	if token.Website != "" {
+		web := token.Website
+		resp.Website = &web
 	}
 	if token.TxHash != "" {
 		hash := token.TxHash
@@ -62,9 +86,44 @@ func toTokenNewResponse(token model.Token, stats model.TokenVolumeStats) dto.Tok
 		status := token.Status
 		resp.Status = &status
 	}
-	if token.LtAddress != "" {
-		lt := token.LtAddress
-		resp.TargetAsset = &lt
+	if token.TotalSupply != "" {
+		supply := token.TotalSupply
+		resp.TotalSupply = &supply
+	}
+	if token.MarketCap != "" {
+		mcap := token.MarketCap
+		resp.MarketCap = &mcap
+	}
+	if token.BondingCurveProgress != "" {
+		progress := token.BondingCurveProgress
+		resp.BondingCurveProgress = &progress
+	}
+	if token.GraduatedAt > 0 {
+		gt := token.GraduatedAt
+		resp.GraduatedTime = &gt
+	}
+	if token.TargetAsset != "" {
+		asset := token.TargetAsset
+		resp.TargetAsset = &asset
+		resp.Underlying = &asset
+	}
+	if token.TargetLeverage != nil {
+		lev := *token.TargetLeverage
+		resp.TargetLeverage = &lev
+		resp.Leverage = &lev
+	}
+	if token.IsLong != nil {
+		isLong := *token.IsLong
+		resp.IsLong = &isLong
+		dir := "LONG"
+		if !isLong {
+			dir = "SHORT"
+		}
+		resp.Direction = &dir
+	}
+	if token.BondingAddress != "" {
+		bonding := token.BondingAddress
+		resp.Bonding = &bonding
 	}
 
 	decimals := 18
@@ -75,6 +134,10 @@ func toTokenNewResponse(token model.Token, stats model.TokenVolumeStats) dto.Tok
 	if common.ZapAddress != "" {
 		zap := common.ZapAddress
 		resp.Zap = &zap
+	}
+	if common.RouterAddress != "" {
+		router := common.RouterAddress
+		resp.Router = &router
 	}
 
 	if stats.TradeCount > 0 || stats.TotalVolume > 0 {
