@@ -6,26 +6,12 @@ import {
   wsPushToCandle,
   type KlineStream,
 } from '@/lib/tradingview/api'
+import { KLINE_HISTORY_START_MS } from '@/lib/tradingview/constants'
 import type { KlineCandle, KlinePeriod, KlineWsPush } from '@/lib/tradingview/types'
 
 type UseKlineFeedState = {
   candles: KlineCandle[]
   loading: boolean
-}
-
-function getLookbackMs(period: KlinePeriod): number {
-  switch (period) {
-    case '1m':
-      return 24 * 60 * 60 * 1000
-    case '15m':
-      return 7 * 24 * 60 * 60 * 1000
-    case '1h':
-      return 30 * 24 * 60 * 60 * 1000
-    case '1d':
-      return 180 * 24 * 60 * 60 * 1000
-    default:
-      return 24 * 60 * 60 * 1000
-  }
 }
 
 /** Merge a pushed candle into an existing sorted candle array.
@@ -73,7 +59,7 @@ export function useKlineFeed(address: string, period: KlinePeriod): UseKlineFeed
     setLoading(true)
 
     const end = Date.now()
-    const start = end - getLookbackMs(period)
+    const start = KLINE_HISTORY_START_MS
 
     getKlineList({
       address: safeAddress,

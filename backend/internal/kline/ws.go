@@ -154,7 +154,7 @@ func handleClientText(engine *Engine, hub *Hub, client *client, raw string) {
 
 		if op == "subscribe" {
 			if open, ok := engine.GetOpenCandle(address, arg.Period); ok {
-				hub.Broadcast(open)
+				engine.broadcastPrepared(address, arg.Period, open)
 			}
 		}
 	}

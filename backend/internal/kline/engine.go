@@ -90,6 +90,18 @@ func (e *Engine) OnTrade(trade *model.Trade) {
 	}
 }
 
+func (e *Engine) broadcastPrepared(address, period string, raw Candle) {
+	prevClose, prevBegin, hasPrev := PreviousPeriodClose(address, period, raw.BeginTime)
+	series, err := PreparePushSeries(address, period, raw, prevClose, prevBegin, hasPrev)
+	if err != nil {
+		common.SysError("kline prepare push: " + err.Error())
+		return
+	}
+	for _, c := range series {
+		e.hub.Broadcast(c)
+	}
+}
+
 func (e *Engine) applyTrade(trade *model.Trade) error {
 	address := normalizeAddress(trade.TokenAddress)
 	if address == "" {
@@ -123,6 +135,13 @@ func (e *Engine) applyTrade(trade *model.Trade) error {
 			BeginTime:    begin,
 			EndTime:      end,
 		}
+		if row, ok, err := model.GetKline(address, Period1m, begin); err != nil {
+			e.mu.Unlock()
+			return err
+		} else if ok && row.TradeCount > 0 {
+			loaded := CandleFromModel(row)
+			cur = &loaded
+		}
 		e.open[address] = cur
 	}
 	if err := cur.ApplyTrade(*trade); err != nil {
@@ -143,7 +162,7 @@ func (e *Engine) applyTrade(trade *model.Trade) error {
 	if hasOpen {
 		for _, period := range e.hub.SubscribedPeriods(address) {
 			if candle, ok := e.buildOpenCandle(address, period, &open1m); ok {
-				e.hub.Broadcast(candle)
+				e.broadcastPrepared(address, period, candle)
 			}
 		}
 	}
@@ -381,7 +400,7 @@ func (e *Engine) List(address, period string, startMs, endMs int64) ([]Candle, e
 			}
 		}
 	}
-	return base, nil
+	return PrepareChartCandles(base, period, startSec, endSec)
 }
 
 type BackfillResult struct {

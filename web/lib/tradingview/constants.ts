@@ -13,3 +13,6 @@ export const PERIOD_SECONDS: Record<KlinePeriod, number> = {
   '1h': 60 * 60,
   '1d': 24 * 60 * 60,
 }
+
+/** Kline list API earliest start (indexer launch date, UTC). */
+export const KLINE_HISTORY_START_MS = Date.UTC(2026, 4, 16)

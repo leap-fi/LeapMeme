@@ -1,9 +1,11 @@
 package model
 
 import (
+	"errors"
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -65,6 +67,26 @@ func ListKlines(tokenAddress, period string, startSec, endSec int64) ([]Kline, e
 		return nil, err
 	}
 	return rows, nil
+}
+
+// GetKline returns a single kline bucket when present.
+func GetKline(tokenAddress, period string, beginSec int64) (Kline, bool, error) {
+	tokenAddress = strings.ToLower(strings.TrimSpace(tokenAddress))
+	if tokenAddress == "" || beginSec <= 0 {
+		return Kline{}, false, nil
+	}
+	var row Kline
+	err := DB.Where(
+		"token_address = ? AND period = ? AND begin_time = ?",
+		tokenAddress, period, beginSec,
+	).First(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return Kline{}, false, nil
+		}
+		return Kline{}, false, err
+	}
+	return row, true, nil
 }
 
 func DeleteKlinesForToken(tokenAddress, period string) error {

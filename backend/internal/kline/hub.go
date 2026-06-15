@@ -142,7 +142,7 @@ func (h *Hub) Unsubscribe(c *client, period, address string) error {
 }
 
 func (h *Hub) Broadcast(candle Candle) {
-	if candle.TradeCount == 0 {
+	if candle.TradeCount == 0 && candle.Volume == 0 && !candle.IsSyntheticGap() {
 		return
 	}
 	msg := wsPushMessage{

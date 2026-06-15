@@ -1,3 +1,0 @@
-DROP TABLE IF EXISTS `setups`;
-DROP TABLE IF EXISTS `options`;
-DROP TABLE IF EXISTS `users`;

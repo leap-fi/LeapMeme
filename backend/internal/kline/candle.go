@@ -2,8 +2,10 @@ package kline
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/leap/backend/internal/model"
 )
@@ -146,7 +148,213 @@ func AggregateCandles(rows []Candle, targetPeriod string) ([]Candle, error) {
 	return out, nil
 }
 
-// BuildCandlesFromTrades aggregates ascending trades into 1m candles.
+// ApplyPriceContinuity adjusts sparse candles for chart display: each bar opens at
+// the previous bar's close. Actual trade close is preserved; high/low expand if needed.
+func ApplyPriceContinuity(candles []Candle) []Candle {
+	if len(candles) <= 1 {
+		return candles
+	}
+	out := make([]Candle, len(candles))
+	copy(out, candles)
+	for i := 1; i < len(out); i++ {
+		prevClose := out[i-1].ClosePrice
+		if prevClose <= 0 {
+			continue
+		}
+		out[i].OpenPrice = prevClose
+		if out[i].HighPrice < prevClose {
+			out[i].HighPrice = prevClose
+		}
+		if out[i].LowPrice > prevClose {
+			out[i].LowPrice = prevClose
+		}
+	}
+	return out
+}
+
+const maxGapFillBuckets = 50000
+
+// FillTimeGaps inserts synthetic flat candles (volume=0) for missing periods so the
+// time axis is continuous. Raw trade candles are unchanged; gaps use previous close.
+func FillTimeGaps(candles []Candle, period string, startSec, endSec int64) ([]Candle, error) {
+	if len(candles) == 0 {
+		return candles, nil
+	}
+	periodSec, err := PeriodDurationSec(period)
+	if err != nil {
+		return nil, err
+	}
+
+	sorted := append([]Candle(nil), candles...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].BeginTime < sorted[j].BeginTime })
+
+	rangeStart := int64(0)
+	if startSec > 0 {
+		rangeStart, err = BucketBeginSec(startSec*1000, period)
+		if err != nil {
+			return nil, err
+		}
+	}
+	rangeEnd := endSec
+	if rangeEnd <= 0 {
+		rangeEnd = time.Now().Unix()
+	}
+	rangeEnd, err = BucketBeginSec(rangeEnd*1000, period)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]Candle, 0, len(sorted)*2)
+	bucketsAdded := 0
+
+	synthetic := func(begin int64, price float64, sample Candle) Candle {
+		end, _ := BucketEndSec(begin, period)
+		return Candle{
+			TokenAddress: sample.TokenAddress,
+			Period:       period,
+			BeginTime:    begin,
+			EndTime:      end,
+			OpenPrice:    price,
+			HighPrice:    price,
+			LowPrice:     price,
+			ClosePrice:   price,
+		}
+	}
+
+	appendSynthetic := func(begin int64, price float64, sample Candle) bool {
+		if bucketsAdded >= maxGapFillBuckets {
+			return false
+		}
+		out = append(out, synthetic(begin, price, sample))
+		bucketsAdded++
+		return true
+	}
+
+	first := sorted[0]
+	if rangeStart > 0 && first.BeginTime > rangeStart {
+		price := first.OpenPrice
+		for t := rangeStart; t < first.BeginTime; t += periodSec {
+			if !appendSynthetic(t, price, first) {
+				break
+			}
+		}
+	}
+
+	out = append(out, first)
+	prevClose := first.ClosePrice
+	for i := 1; i < len(sorted); i++ {
+		cur := sorted[i]
+		for t := sorted[i-1].BeginTime + periodSec; t < cur.BeginTime; t += periodSec {
+			if !appendSynthetic(t, prevClose, cur) {
+				break
+			}
+		}
+		out = append(out, cur)
+		prevClose = cur.ClosePrice
+	}
+
+	last := sorted[len(sorted)-1]
+	if last.BeginTime < rangeEnd {
+		for t := last.BeginTime + periodSec; t <= rangeEnd; t += periodSec {
+			if !appendSynthetic(t, prevClose, last) {
+				break
+			}
+		}
+	}
+
+	return out, nil
+}
+
+// PrepareChartCandles fills time gaps then aligns opens for chart/API display.
+// Stored klines in DB remain raw trade aggregates.
+func PrepareChartCandles(candles []Candle, period string, startSec, endSec int64) ([]Candle, error) {
+	filled, err := FillTimeGaps(candles, period, startSec, endSec)
+	if err != nil {
+		return nil, err
+	}
+	return ApplyPriceContinuity(filled), nil
+}
+
+// IsSyntheticGap returns true for display-only flat candles (no trades).
+func (c Candle) IsSyntheticGap() bool {
+	return c.TradeCount == 0 && c.Volume == 0 && c.OpenPrice > 0
+}
+
+// PreparePushSeries builds WS push payloads: optional gap-fill flats + display candle.
+func PreparePushSeries(address, period string, raw Candle, prevClose float64, prevBegin int64, hasPrev bool) ([]Candle, error) {
+	periodSec, err := PeriodDurationSec(period)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]Candle, 0, 8)
+	if hasPrev && prevBegin > 0 {
+		for t := prevBegin + periodSec; t < raw.BeginTime; t += periodSec {
+			out = append(out, syntheticGapCandle(address, period, t, prevClose))
+		}
+	}
+
+	display := raw
+	if hasPrev && prevClose > 0 {
+		display.OpenPrice = prevClose
+		if display.HighPrice < prevClose {
+			display.HighPrice = prevClose
+		}
+		if display.LowPrice > prevClose {
+			display.LowPrice = prevClose
+		}
+	}
+	out = append(out, display)
+	return out, nil
+}
+
+func syntheticGapCandle(address, period string, begin int64, price float64) Candle {
+	end, _ := BucketEndSec(begin, period)
+	return Candle{
+		TokenAddress: address,
+		Period:       period,
+		BeginTime:    begin,
+		EndTime:      end,
+		OpenPrice:    price,
+		HighPrice:    price,
+		LowPrice:     price,
+		ClosePrice:   price,
+	}
+}
+
+// PreviousPeriodClose returns the close and begin of the last bucket before beforeBegin.
+func PreviousPeriodClose(address, period string, beforeBegin int64) (close float64, lastBegin int64, ok bool) {
+	address = normalizeAddress(address)
+	if address == "" || beforeBegin <= 0 {
+		return 0, 0, false
+	}
+
+	rows, err := model.ListKlines(address, Period1m, 0, beforeBegin-1)
+	if err != nil || len(rows) == 0 {
+		return 0, 0, false
+	}
+
+	if period == Period1m {
+		last := rows[len(rows)-1]
+		return model.ParseDecimalString(last.ClosePrice), last.BeginTime, true
+	}
+
+	tmp := make([]Candle, 0, len(rows))
+	for _, row := range rows {
+		tmp = append(tmp, CandleFromModel(row))
+	}
+	agg, err := AggregateCandles(tmp, period)
+	if err != nil || len(agg) == 0 {
+		return 0, 0, false
+	}
+	for i := len(agg) - 1; i >= 0; i-- {
+		if agg[i].BeginTime < beforeBegin {
+			return agg[i].ClosePrice, agg[i].BeginTime, true
+		}
+	}
+	return 0, 0, false
+}
+
 func BuildCandlesFromTrades(tokenAddress string, trades []model.Trade) ([]Candle, error) {
 	tokenAddress = normalizeAddress(tokenAddress)
 	if tokenAddress == "" {
