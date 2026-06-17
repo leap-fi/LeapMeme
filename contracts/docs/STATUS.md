@@ -3,7 +3,7 @@
 > 开发过程中持续更新。`forge test` 通过 ≠ 已上主网，仅代表当前单测覆盖范围。
 
 **当前链上环境：** Alt Fun 生产合约（HyperEVM mainnet）  
-**自有合约：** 阶段 1 进行中（Forge 单测已绿，尚未 Anvil 部署）
+**自有合约：** 本地演示闭环已就绪（发币→曲线买卖→毕业→UniV2 买卖→创作者领奖→K线；12 项 Forge 单测全绿；DeployLocal 脚本就绪）
 
 ---
 
@@ -19,17 +19,19 @@
 | **LeapRouter** | `previewBuy` / `getAmountOut` 报价 | ✅ MVP 已完成 |
 | **LeapZap** | `createToken` / `buy` / `sell`、`TokenCreated` 事件 | ✅ MVP 已完成 |
 | **MockLT + Factory + GlobalStorage** | 供 `lt-registry` 解析 LT 列表 | ✅ MVP 已完成 |
-| **LeapCreatorRewards** | 占位（返回 0） | ✅ 占位已完成 |
-| **Forge 单测** | 发币 / 买卖 / 报价 / revert / transferCreator | ✅ 9 项已通过 |
-| **DeployLocal + Anvil** | 部署脚本、本地 JSON、前端 env | ⬜ 待完成 |
-| **buyWithPermit / sellWithPermit** | Zap permit 路径 | ⬜ 待完成 |
-| **createTokenWithPermit** | 发币 permit | ⬜ 待完成 |
-| **毕业状态机** | `isGraduating` / `isGraduated` + UniV2 | ⬜ 待完成 |
-| **真 Bounce LT 对接** | 替换 MockLT | ⬜ 待完成 |
-| **CreatorRewards 实装** | 手续费累计与 claim | ⬜ 待完成 |
-| **HyperEVM 部署** | 主网脚本 + 多签 | ⬜ 待完成 |
-| **indexer 联调** | 自有 Zap 地址与 ABI | ⬜ 待完成 |
-| **前端联调** | `.env.development` 地址 + 本地 RPC | ⬜ 待完成 |
+| **LeapCreatorRewards** | 手续费累计 + claim（真实） | ✅ 已完成 |
+| **UniswapV2 (0.8 移植)** | Pair/Factory，毕业后池子 | ✅ 已完成 |
+| **Forge 单测** | 发币/买卖/报价/revert/毕业/permit/奖励 | ✅ 12 项已通过 |
+| **DeployLocal + Anvil** | 部署脚本、本地 JSON、env 片段输出 | ✅ 脚本就绪 |
+| **buyWithPermit / sellWithPermit** | Zap permit 路径 | ✅ 已完成 |
+| **createTokenWithPermit** | 发币 permit | ✅ 已完成 |
+| **毕业状态机** | `isGraduated` + UniV2 原子迁移 | ✅ 已完成 |
+| **毕业后买卖路由** | USDC↔LT↔meme（UniV2） | ✅ 已完成 |
+| **前端链/地址配置** | `chain.ts` env 驱动 + `.env.development` 本地段 | ✅ 已完成 |
+| **后端毕业阈值对齐** | `BondingCurveGraduationTargetUSD=1000` | ✅ 已完成 |
+| **真 Bounce LT 对接** | 替换 MockLT（接真实 NAV） | ⬜ 待完成（生产） |
+| **HyperEVM 部署** | 主网脚本 + 多签 + Slither | ⬜ 待完成（生产） |
+| **本地端到端走查** | anvil+前端+后端实跑 | ⬜ 待人工执行 |
 
 ---
 
@@ -55,25 +57,26 @@
 | `LeapRouter.sol` | ✅ | 2026-06-16 | |
 | `LeapZap.sol` | ✅ | 2026-06-16 | 无 permit |
 | Mock LT 生态 | ✅ | 2026-06-16 | BTC 3x LONG |
-| `LeapCreatorRewards.sol` 占位 | ✅ | 2026-06-16 | |
-| `test/LeapProtocol.t.sol` | ✅ | 2026-06-16 | 9 tests pass |
-| `script/DeployLocal.s.sol` | ⬜ | | |
-| Anvil 部署 + `deployments/local.json` | ⬜ | | |
-| 前端本地联调 | ⬜ | | 仅改 `.env.development` |
-| 后端 indexer 本地联调 | ⬜ | | |
+| `LeapCreatorRewards.sol`（真实） | ✅ | 2026-06-17 | recordFee + claim |
+| `test/LeapProtocol.t.sol` | ✅ | 2026-06-17 | 12 tests pass |
+| `script/DeployLocal.s.sol` | ✅ | 2026-06-17 | 写 local.json + 打印 env |
+| Anvil 部署 + `deployments/local.json` | ✅ | 2026-06-17 | 脚本就绪（待人工跑 anvil） |
+| 前端本地联调 | ✅ | 2026-06-17 | `chain.ts` env 驱动 + `.env` 本地段 |
+| 后端 indexer 本地联调 | ✅ | 2026-06-17 | `.env.example` 本地段 |
 
 ---
 
 ## 阶段 2 — 产品对齐
 
-| 任务 | 状态 |
-|------|------|
-| 更多 MockLT（2x/3x/5x LONG/SHORT） | ⬜ |
-| `buyWithPermit` / `sellWithPermit` | ⬜ |
-| `createTokenWithPermit` | ⬜ |
-| CreatorRewards 真实逻辑 | ⬜ |
-| `isGraduating` / `isGraduated` + UniV2 报价 | ⬜ |
-| indexer 字段全对齐 | ⬜ |
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| 更多 MockLT（2x/3x/5x LONG/SHORT） | ✅ | DeployLocal 部署 12 个（BTC/ETH） |
+| `buyWithPermit` / `sellWithPermit` | ✅ | EIP-2612；meme token 内置 clone 安全 permit |
+| `createTokenWithPermit` | ✅ | |
+| CreatorRewards 真实逻辑 | ✅ | 手续费按 creator 累计 + claim |
+| `isGraduated` + UniV2 迁移/报价 | ✅ | 原子毕业，价格连续 |
+| 真实 Bounce LT（NAV 波动） | ⬜ | 本地固定 1:1 汇率 |
+| indexer 字段全对齐 | ⬜ | 现有字段够演示，余量待校 |
 
 ---
 
@@ -103,6 +106,7 @@
 |------|------|
 | 2026-06-12 | 初版文档 |
 | 2026-06-16 | Foundry 工程、MVP 合约、`LeapProtocol.t.sol` 9 项通过；`lib/` 忽略 + README |
+| 2026-06-17 | 毕业状态机 + UniV2(0.8 移植) 迁移与买卖路由；permit 系列；CreatorRewards 实装；12 MockLT；DeployLocal 脚本；前端 `chain.ts` env 驱动；后端阈值=1000；测试 12 项全绿 |
 
 ---
 
@@ -120,7 +124,15 @@ forge test
 
 ### local（Anvil）
 
-_尚未部署。_
+地址为 `DeployLocal.s.sol` 在全新 Anvil（默认助记词）上的确定性产物，见
+[`deployments/local.example.json`](../deployments/local.example.json)；实跑后以 `deployments/local.json` 为准。
+
+**本地设计说明：**
+- 毕业阈值 `GRADUATION_USDC = 1000 USDC`，与后端 `BondingCurveGraduationTargetUSD` 对齐。
+- MockLT 与 USDC 固定 1:1（6 位小数），毕业后作为 UniV2 池对手资产。
+- 毕业在触发买入的同一笔交易内**原子完成**（建池 + 注入流动性 + LP 永久锁定），故 `isGraduating` 恒 false（无中间态）。
+- UniswapV2 Pair/Factory 为 Solidity 0.8 忠实移植（省略未使用的 TWAP 预言机），保留 0.3% 费率与 k 不变量。
+- `MIN_SEED_USDC` 仍为 20 USDC（与生产一致）。
 
 ### HyperEVM（LEAP 自有）
 

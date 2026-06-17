@@ -1,15 +1,9 @@
 {
-  "_note": "DeployLocal.s.sol 在全新 Anvil（默认助记词、默认部署者）上产出的确定性地址；每次干净启动 Anvil 后重新部署即得到相同地址。实际以 deployments/local.json 为准。",
-  "chainId": 31337,
-  "rpcUrl": "http://127.0.0.1:8545",
-  "usdc": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "zap": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
   "bonding": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
-  "router": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+  "chainId": 31337,
   "creatorRewards": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
-  "globalStorage": "0x9A676e781A523b5d0C0e43731313A708CB607508",
   "factory": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
-  "tokenImplementation": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+  "globalStorage": "0x9A676e781A523b5d0C0e43731313A708CB607508",
   "lts": [
     "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
     "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
@@ -23,5 +17,10 @@
     "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
     "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
     "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
-  ]
+  ],
+  "router": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "tokenImplementation": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+  "usdc": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "zap": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"
 }

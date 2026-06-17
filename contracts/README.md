@@ -64,19 +64,45 @@ forge fmt
 
 改 `src/*.sol` → `forge test`，内存 EVM 执行，不连链、不花 gas。
 
+## 本地演示（Anvil + 前端 + 后端）
+
+完整链路：发币 → 曲线买卖 → 毕业（迁移到 UniV2 池）→ 毕业后买卖 → 创作者领奖 → K 线实时更新。
+
+```bash
+# 终端 1：本地链（chain-id 必须 31337）
+anvil --chain-id 31337
+
+# 终端 2：部署全套合约 + mint 测试 USDC + 写 deployments/local.json
+cd contracts
+forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
+```
+
+部署脚本会打印 `web/.env.development.local` 与 `backend/.env` 需要的地址片段：
+
+- 前端：取消注释 `web/.env.development` 底部的本地段（或写入 `.env.development.local`），`pnpm dev`
+- 后端：取消注释 `backend/.env.example` 的本地段（或写入 `backend/.env`），`go run .`
+- 钱包：MetaMask 添加网络 RPC `http://127.0.0.1:8545`、chainId `31337`，导入 Anvil 打印的私钥
+
+毕业阈值本地为 **1000 USDC**（`LeapBonding.GRADUATION_USDC`，与后端 `BondingCurveGraduationTargetUSD` 对齐）。
+Anvil 重启会清空链，需重新部署；后端要删 `indexer_cursors`（或重置 DB）再扫。
+
+详细步骤见 [docs/WORKFLOW.md](docs/WORKFLOW.md)。
+
 ## 目录结构
 
 ```
 contracts/
 ├── src/              # 业务合约
-│   ├── LeapZap.sol
-│   ├── LeapBonding.sol
-│   ├── LeapRouter.sol
-│   ├── LeapToken.sol
-│   ├── mocks/        # MockUSDC、MockLT 等
+│   ├── LeapZap.sol            # 入口：create/buy/sell(+permit)、收费→CreatorRewards
+│   ├── LeapBonding.sol        # 曲线 + 毕业状态机 + UniV2 迁移
+│   ├── LeapRouter.sol         # 曲线阶段报价
+│   ├── LeapToken.sol          # EIP-1167 clone + EIP-2612 permit
+│   ├── LeapCreatorRewards.sol # 手续费累计 + claim
+│   ├── external/univ2/        # UniswapV2 Pair/Factory（0.8 移植）
+│   ├── mocks/                 # MockUSDC、MockLT、MockBounceFactory、MockGlobalStorage
 │   └── interfaces/
 ├── test/             # Forge 单测
-├── script/           # 部署脚本（Anvil / 主网）
+├── script/           # DeployLocal.s.sol 等部署脚本
 ├── scripts/          # install-deps.sh 等工具脚本
 ├── deployments/      # 部署地址 JSON（提交 example，local 可忽略）
 ├── lib/              # git 忽略，见 install-deps.sh

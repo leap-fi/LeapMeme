@@ -11,7 +11,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const BondingCurveGraduationTargetUSD = 9000
+// BondingCurveGraduationTargetUSD 必须与自有合约 LeapBonding.GRADUATION_USDC 对齐
+// （本地演示 = 1000 USDC）。生产环境与合约同步调高。
+const BondingCurveGraduationTargetUSD = 1000
 
 type Token struct {
 	ID                   int64  `gorm:"primaryKey"`

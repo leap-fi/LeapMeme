@@ -21,6 +21,7 @@ import { DEFAULT_TOKEN_IMAGE, isRenderableImageSrc } from '@/lib/image-src'
 import { usePrivyWalletLogin } from '@/hooks/use-privy-wallet-login'
 import { useLaunchToken } from '@/hooks/use-launch-token'
 import { MIN_SEED_USDC } from '@/lib/contracts/config'
+import { BONDING_CURVE_GRADUATION_TARGET_USD } from '@/lib/apis/meme-server/format'
 import { fetchAwsUploadTokenApi } from '@/lib/apis/account/aws-token.api'
 import {
   getWorldCupCreatePrefill,
@@ -247,7 +248,7 @@ export default function CreatePage() {
   const selectedLeverageNum = parseLeverageMultiplier(leverage)
   const tokensReceived = (seedAmount * 330000).toLocaleString()
   const supplyPercent = ((seedAmount / 3100) * 100).toFixed(1)
-  const curveFilled = ((seedAmount / 9000) * 100).toFixed(1)
+  const curveFilled = ((seedAmount / BONDING_CURVE_GRADUATION_TARGET_USD) * 100).toFixed(1)
 
   const canLaunch =
     tokenName.trim().length > 0 &&

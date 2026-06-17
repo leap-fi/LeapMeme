@@ -17,8 +17,8 @@ export function normalizeBondingCurveProgress(
   return raw
 }
 
-/** Graduation threshold on the bonding curve (USD). */
-export const BONDING_CURVE_GRADUATION_TARGET_USD = 9_000
+/** Graduation threshold on the bonding curve (USD). Align with LeapBonding.GRADUATION_USDC / backend BondingCurveGraduationTargetUSD. */
+export const BONDING_CURVE_GRADUATION_TARGET_USD = 1_000
 
 export function pickBondingCurveVolumeUsd(
   detail:
