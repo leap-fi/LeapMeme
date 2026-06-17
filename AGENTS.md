@@ -7,7 +7,7 @@
 | `backend/` | Go API：`github.com/leap/backend` |
 | `web/` | Next.js 前端，API 契约见 `web/lib/apis/` |
 | `database/migrations/` | SQL 迁移（后端 `MIGRATIONS_PATH=../database/migrations`） |
-| `contracts/` | 自有合约预留；当前链上逻辑在 `web/lib/contracts/` |
+| `contracts/` | 自有合约（Foundry）；开发文档见 `contracts/docs/`；现网链上逻辑在 `web/lib/contracts/` |
 
 产品对标 [Alt Fun](https://alt.fun/)。先反推 API，自有合约最后接入。**暂不开发业务 API。**
 

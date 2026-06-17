@@ -1,0 +1,7 @@
+# Foundry 构建产物
+out/
+cache/
+broadcast/
+
+# 第三方依赖（克隆后执行 ./scripts/install-deps.sh）
+lib/

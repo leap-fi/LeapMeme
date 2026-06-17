@@ -20,5 +20,11 @@ backend/.env
 web/.next/
 web/tsconfig.tsbuildinfo
 
+# Contracts（Foundry 依赖与构建产物，见 contracts/README.md）
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
 # Database / local
 database/.env
