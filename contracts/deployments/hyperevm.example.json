@@ -1,0 +1,13 @@
+{
+  "_note": "HyperEVM 主网 LEAP 自有合约部署清单模板。实际地址以 forge script DeployHyperEVM.s.sol --broadcast 写入的 hyperevm.json 为准。usdc / bounceGlobalStorage / bounceFactory 为链上已有基础设施，非 LEAP 部署。",
+  "chainId": 999,
+  "rpcUrl": "https://rpc.hyperliquid.xyz/evm",
+  "usdc": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
+  "bounceGlobalStorage": "0xa07d06383c1863c8A54d427aC890643d76cc03ff",
+  "bounceFactory": "0x65a379FE76C7AdC8037b3522De62B27c0D4e9259",
+  "zap": "0x0000000000000000000000000000000000000000",
+  "bonding": "0x0000000000000000000000000000000000000000",
+  "router": "0x0000000000000000000000000000000000000000",
+  "creatorRewards": "0x0000000000000000000000000000000000000000",
+  "tokenImplementation": "0x0000000000000000000000000000000000000000"
+}

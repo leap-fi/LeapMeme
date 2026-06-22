@@ -5,3 +5,12 @@ broadcast/
 
 # 第三方依赖（克隆后执行 ./scripts/install-deps.sh）
 lib/
+
+# 本地 Anvil 状态快照（--state，勿提交）
+.anvil/
+
+# 主网部署私钥（复制 .env.deploy.example → .env.deploy）
+.env.deploy
+
+# 主网部署结果（含真实合约地址）
+deployments/hyperevm.json

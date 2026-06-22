@@ -226,22 +226,14 @@ export async function quoteBuy(
     return quoteGraduatedBuy(tokenAddress, netUsdc, contracts, buyFeeBps)
   }
 
-  const ltAddress = await readLtAddress(tokenAddress, contracts)
-  if (!ltAddress) return null
-
-  const ltIn = await publicClient.readContract({
-    address: ltAddress,
-    abi: bounceLtAbi,
-    functionName: 'baseToLtAmount',
-    args: [netUsdc],
-  })
-
+  // Bonding curve quotes USDC directly (LeapRouter.previewBuy → Bonding.quoteBuy).
   const [, tokensOut] = await publicClient.readContract({
     address: contracts.router,
     abi: routerAbi,
     functionName: 'previewBuy',
-    args: [tokenAddress, ltIn],
+    args: [tokenAddress, netUsdc],
   })
+  if (tokensOut <= BigInt(0)) return null
 
   return {
     estimatedOut: formatUnits(tokensOut, TOKEN_DECIMALS),
@@ -273,24 +265,16 @@ export async function quoteSell(
     return quoteGraduatedSell(tokenAddress, amountIn, contracts, sellFeeBps)
   }
 
-  const ltAddress = await readLtAddress(tokenAddress, contracts)
-  if (!ltAddress) return null
-
-  const ltOut = await publicClient.readContract({
+  const grossUsdc = await publicClient.readContract({
     address: contracts.router,
     abi: routerAbi,
     functionName: 'getAmountOut',
     args: [tokenAddress, false, amountIn],
   })
-
-  const grossUsdc = await publicClient.readContract({
-    address: ltAddress,
-    abi: bounceLtAbi,
-    functionName: 'ltToBaseAmount',
-    args: [ltOut],
-  })
+  if (grossUsdc <= BigInt(0)) return null
 
   const netUsdc = grossUsdc - (grossUsdc * sellFeeBps) / BPS
+  if (netUsdc <= BigInt(0)) return null
 
   return {
     estimatedOut: formatUnits(netUsdc, USDC_DECIMALS),

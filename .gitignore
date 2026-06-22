@@ -1,3 +1,6 @@
+# Markdown（本地笔记/学习文档，不提交）
+*.md
+
 .env
 .env.local
 *.log

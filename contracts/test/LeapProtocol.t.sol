@@ -224,16 +224,47 @@ contract LeapProtocolTest is Test {
         address token = _createTokenAs(creator);
 
         _buyAs(trader, token, BUY_USDC);
-        uint256 expectedFee = (BUY_USDC * zap.buyFeeBps()) / 10_000;
-        assertEq(rewards.creatorBalance(creator), expectedFee);
-        assertEq(rewards.lifetimeCreatorEarned(creator), expectedFee);
+        uint256 totalFee = (BUY_USDC * zap.buyFeeBps()) / 10_000;
+        uint256 expectedCreatorFee = (totalFee * zap.creatorFeeShareBps()) / 10_000;
+        assertEq(rewards.creatorBalance(creator), expectedCreatorFee);
+        assertEq(rewards.lifetimeCreatorEarned(creator), expectedCreatorFee);
 
         uint256 before = usdc.balanceOf(creator);
         vm.prank(creator);
         rewards.claim();
-        assertEq(usdc.balanceOf(creator), before + expectedFee);
+        assertEq(usdc.balanceOf(creator), before + expectedCreatorFee);
         assertEq(rewards.creatorBalance(creator), 0);
-        assertEq(rewards.lifetimeCreatorEarned(creator), expectedFee);
+        assertEq(rewards.lifetimeCreatorEarned(creator), expectedCreatorFee);
+    }
+
+    function test_ProtocolFee_paidToTreasury() public {
+        address token = _createTokenAs(creator);
+        address treasury = zap.protocolTreasury();
+
+        uint256 before = usdc.balanceOf(treasury);
+        _buyAs(trader, token, BUY_USDC);
+
+        uint256 totalFee = (BUY_USDC * zap.buyFeeBps()) / 10_000;
+        uint256 expectedProtocolFee = totalFee - (totalFee * zap.creatorFeeShareBps()) / 10_000;
+        assertEq(usdc.balanceOf(treasury), before + expectedProtocolFee);
+    }
+
+    function test_PostGraduation_feesStillSplit() public {
+        address token = _createTokenAs(creator);
+        _graduate(token);
+
+        address treasury = zap.protocolTreasury();
+        uint256 treasuryBefore = usdc.balanceOf(treasury);
+        uint256 creatorRewardsBefore = rewards.creatorBalance(creator);
+
+        _buyAs(trader, token, BUY_USDC);
+
+        uint256 totalFee = (BUY_USDC * zap.buyFeeBps()) / 10_000;
+        uint256 creatorFee = (totalFee * zap.creatorFeeShareBps()) / 10_000;
+        uint256 protocolFee = totalFee - creatorFee;
+
+        assertEq(rewards.creatorBalance(creator), creatorRewardsBefore + creatorFee);
+        assertEq(usdc.balanceOf(treasury), treasuryBefore + protocolFee);
     }
 
     // --- permit variants ---
@@ -315,8 +346,10 @@ contract LeapProtocolTest is Test {
     function test_Zap_feeAndMinConstants() public view {
         assertEq(zap.MIN_SEED_USDC(), 20_000_000);
         assertEq(zap.MIN_USDC_AMOUNT(), 10_000_000);
-        assertEq(zap.buyFeeBps(), 100);
-        assertEq(zap.sellFeeBps(), 100);
+        assertEq(zap.buyFeeBps(), 75);
+        assertEq(zap.sellFeeBps(), 75);
+        assertEq(zap.creatorFeeShareBps(), 3333);
+        assertEq(zap.protocolTreasury(), 0x5945509FD601fB6b67bE2ff06ee72188057d45F3);
         assertEq(bonding.GRADUATION_USDC(), 1_000_000_000);
     }
 }

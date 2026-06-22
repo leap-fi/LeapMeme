@@ -5,6 +5,7 @@ import { useWalletSessionOptional } from '@/contexts/wallet-session-context'
 import {
   usePrivy,
   useWallets,
+  useActiveWallet,
   getEmbeddedConnectedWallet,
 } from '@privy-io/react-auth'
 import {
@@ -28,6 +29,7 @@ import {
   resolveLtAddress,
 } from '@/lib/contracts/lt-registry'
 import { readAllowance, readErc20Balance } from '@/lib/contracts/trade-quote'
+import { MAX_ALLOWANCE } from '@/lib/contracts/wallet-batch'
 import { mineVanitySalt } from '@/lib/contracts/vanity-salt'
 
 export type LaunchParamsInput = {
@@ -63,6 +65,15 @@ const FRIENDLY_LAUNCH_ERROR_MARKERS = [
   'wallet is not connected',
   'please connect an ethereum wallet',
 ] as const
+
+export function formatLtPairNotFoundMessage(
+  underlying: string,
+  leverageLabel: string,
+  direction: 'LONG' | 'SHORT',
+): string {
+  const leverage = parseLeverageMultiplier(leverageLabel)
+  return `No leverage token on chain for ${underlying} ${leverage}x ${direction}. Please choose another pair.`
+}
 
 function getLaunchErrorText(error: unknown): string {
   if (typeof error === 'string') return error
@@ -108,6 +119,14 @@ function normalizeLaunchErrorMessage(error: unknown): string {
     message.includes('erc20: transfer amount exceeds balance')
   ) {
     return 'Insufficient USDC balance. Reduce the seed amount or top up your wallet and try again.'
+  }
+
+  if (
+    message.includes('insufficient allowance') ||
+    message.includes('erc20insufficientallowance') ||
+    message.includes('0xfb8f41b2')
+  ) {
+    return 'USDC approval is required. Please try again — you will be asked to approve USDC first, then launch.'
   }
 
   if (
@@ -159,6 +178,7 @@ export function useLaunchToken() {
   const session = useWalletSessionOptional()
   const { authenticated, ready: privyReady } = usePrivy()
   const { wallets, ready: walletsReady } = useWallets()
+  const { wallet: activeWallet } = useActiveWallet()
   const [txState, setTxState] = useState<LaunchTxState>({ status: 'idle' })
   const [ltAddress, setLtAddress] = useState<`0x${string}` | null>(null)
   const [ltLoading, setLtLoading] = useState(true)
@@ -166,9 +186,12 @@ export function useLaunchToken() {
   const registryLoadedRef = useRef(false)
 
   const wallet = useMemo(() => {
+    if (activeWallet && 'address' in activeWallet) {
+      return activeWallet
+    }
     const embedded = getEmbeddedConnectedWallet(wallets)
     return embedded ?? wallets[0] ?? null
-  }, [wallets])
+  }, [activeWallet, wallets])
 
   const walletAddress = wallet?.address as `0x${string}` | undefined
   const isWalletReady = session
@@ -188,26 +211,28 @@ export function useLaunchToken() {
     })
   }, [])
 
+  const resolveLtForPair = useCallback(
+    async (
+      underlying: string,
+      leverageLabel: string,
+      direction: 'LONG' | 'SHORT',
+    ) => {
+      const leverage = parseLeverageMultiplier(leverageLabel)
+      return resolveLtAddress(underlying, leverage, direction)
+    },
+    [],
+  )
+
   const resolveLt = useCallback(
     async (
       underlying: string,
       leverageLabel: string,
       direction: 'LONG' | 'SHORT',
-      accountLtAddress?: `0x${string}` | null,
     ) => {
       const seq = ++resolveSeq.current
-      const showLoading = !accountLtAddress && !registryLoadedRef.current
-      if (showLoading) setLtLoading(true)
+      if (!registryLoadedRef.current) setLtLoading(true)
       try {
-        if (accountLtAddress) {
-          if (seq === resolveSeq.current) {
-            setLtAddress(accountLtAddress)
-          }
-          return accountLtAddress
-        }
-
-        const leverage = parseLeverageMultiplier(leverageLabel)
-        const lt = await resolveLtAddress(underlying, leverage, direction)
+        const lt = await resolveLtForPair(underlying, leverageLabel, direction)
         if (seq === resolveSeq.current) {
           registryLoadedRef.current = true
           setLtAddress(lt)
@@ -217,7 +242,7 @@ export function useLaunchToken() {
         if (seq === resolveSeq.current) setLtLoading(false)
       }
     },
-    [],
+    [resolveLtForPair],
   )
 
   const getWalletClient = useCallback(async () => {
@@ -252,12 +277,18 @@ export function useLaunchToken() {
 
       setTxState({ status: 'resolving_lt' })
       try {
-        const lt =
-          ltAddress ??
-          (await resolveLtAddress(input.underlying, leverage, input.direction))
+        const lt = await resolveLtForPair(
+          input.underlying,
+          input.leverageLabel,
+          input.direction,
+        )
         if (!lt) {
           throw new Error(
-            `No leverage token found for ${input.underlying} ${leverage}x ${input.direction}. Please try another combination.`,
+            formatLtPairNotFoundMessage(
+              input.underlying,
+              input.leverageLabel,
+              input.direction,
+            ),
           )
         }
         setLtAddress(lt)
@@ -277,6 +308,31 @@ export function useLaunchToken() {
 
         const walletClient = await getWalletClient()
 
+        const allowance = await readAllowance(
+          walletAddress,
+          CONTRACTS.usdc,
+          CONTRACTS.zap,
+        )
+        const needsApproval = allowance < seedUsdcAmount
+
+        if (needsApproval) {
+          setTxState({ status: 'approving' })
+          const approveSimulation = await publicClient.simulateContract({
+            address: CONTRACTS.usdc,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [CONTRACTS.zap, MAX_ALLOWANCE],
+            account: walletAddress,
+          })
+          const approveHash = await walletClient.writeContract(
+            approveSimulation.request,
+          )
+          await waitForSuccessfulReceipt(
+            approveHash,
+            'USDC approval failed on-chain. Please try again.',
+          )
+        }
+
         const name = input.tokenName.trim()
         const ticker = input.ticker.trim().toUpperCase()
 
@@ -294,23 +350,7 @@ export function useLaunchToken() {
         )
         const params = buildLaunchParams(input, lt, saltHex)
 
-        const allowance = await readAllowance(
-          walletAddress,
-          CONTRACTS.usdc,
-          CONTRACTS.zap,
-        )
-        const needsApproval = allowance < seedUsdcAmount
-
         setTxState({ status: 'simulating' })
-        const approveSimulation = needsApproval
-          ? await publicClient.simulateContract({
-              address: CONTRACTS.usdc,
-              abi: erc20Abi,
-              functionName: 'approve',
-              args: [CONTRACTS.zap, seedUsdcAmount],
-              account: walletAddress,
-            })
-          : null
         const launchSimulation = await publicClient.simulateContract({
           address: CONTRACTS.zap,
           abi: zapAbi,
@@ -318,17 +358,6 @@ export function useLaunchToken() {
           args: [params, seedUsdcAmount],
           account: walletAddress,
         })
-
-        if (approveSimulation) {
-          setTxState({ status: 'approving' })
-          const approveHash = await walletClient.writeContract(
-            approveSimulation.request,
-          )
-          await waitForSuccessfulReceipt(
-            approveHash,
-            'USDC approval failed on-chain. Please try again.',
-          )
-        }
 
         setTxState({ status: 'launching' })
         const hash = await walletClient.writeContract(launchSimulation.request)
@@ -355,7 +384,7 @@ export function useLaunchToken() {
         throw new Error(message)
       }
     },
-    [walletAddress, ltAddress, getWalletClient],
+    [walletAddress, resolveLtForPair, getWalletClient],
   )
 
   const resetTx = useCallback(() => setTxState({ status: 'idle' }), [])

@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMarketsContext } from '@/contexts/markets-context'
 import {
-  findLeverageToken,
   formatLeverageLabel,
   getLeverageTiers,
   parseLeverageMultiplier,
@@ -19,7 +18,7 @@ import {
 import { formatChangePercent } from '@/lib/hyperliquid/format'
 import { DEFAULT_TOKEN_IMAGE, isRenderableImageSrc } from '@/lib/image-src'
 import { usePrivyWalletLogin } from '@/hooks/use-privy-wallet-login'
-import { useLaunchToken } from '@/hooks/use-launch-token'
+import { useLaunchToken, formatLtPairNotFoundMessage } from '@/hooks/use-launch-token'
 import { MIN_SEED_USDC } from '@/lib/contracts/config'
 import { BONDING_CURVE_GRADUATION_TARGET_USD } from '@/lib/apis/meme-server/format'
 import { fetchAwsUploadTokenApi } from '@/lib/apis/account/aws-token.api'
@@ -38,7 +37,7 @@ const seedBuyPresets = [
 
 export default function CreatePage() {
   const [direction, setDirection] = useState<'LONG' | 'SHORT'>('LONG')
-  const [selectedAsset, setSelectedAsset] = useState('HYPE')
+  const [selectedAsset, setSelectedAsset] = useState('')
   const [leverage, setLeverage] = useState('3×')
   const [tokenName, setTokenName] = useState('')
   const [ticker, setTicker] = useState('')
@@ -77,18 +76,6 @@ export default function CreatePage() {
     [selectedMarket, direction],
   )
 
-  const selectedLtToken = useMemo(
-    () =>
-      findLeverageToken(
-        selectedMarket,
-        direction,
-        parseLeverageMultiplier(leverage),
-      ),
-    [selectedMarket, direction, leverage],
-  )
-
-  const accountLtAddress = selectedLtToken?.address as `0x${string}` | undefined
-
   useEffect(() => {
     if (marketsLoading || markets.length === 0) return
     if (!markets.some((m) => m.symbol === selectedAsset)) {
@@ -105,8 +92,9 @@ export default function CreatePage() {
   }, [leverageTiers, leverage])
 
   useEffect(() => {
-    void resolveLt(selectedAsset, leverage, direction, accountLtAddress ?? null)
-  }, [selectedAsset, leverage, direction, accountLtAddress, resolveLt])
+    if (!selectedAsset) return
+    void resolveLt(selectedAsset, leverage, direction)
+  }, [selectedAsset, leverage, direction, resolveLt])
 
   const worldCupTeam = useMemo(
     () => parseWorldCupFromQuery(searchParams.get('from')),
@@ -257,15 +245,20 @@ export default function CreatePage() {
     !!ltAddress &&
     !ltLoading
 
+  const pairUnavailableMessage =
+    !ltLoading && selectedAsset && !ltAddress
+      ? formatLtPairNotFoundMessage(selectedAsset, leverage, direction)
+      : null
+
   const launchLabel = (() => {
     if (needsReconnect) return 'RECONNECT WALLET TO LAUNCH'
     if (!isWalletReady) return 'CONNECT WALLET TO LAUNCH'
     if (ltLoading) return 'LOADING PAIR…'
     if (!ltAddress) return 'PAIR NOT AVAILABLE'
     if (isBusy) {
+      if (txState.status === 'approving') return 'APPROVING USDC…'
       if (txState.status === 'mining_address') return 'MINING ADDRESS…'
       if (txState.status === 'simulating') return 'SIMULATING LAUNCH…'
-      if (txState.status === 'approving') return 'APPROVING USDC…'
       return 'CONFIRM IN WALLET…'
     }
     if (txState.status === 'success') return 'LAUNCHED'
@@ -494,6 +487,10 @@ export default function CreatePage() {
                   )}
                 </div>
               </div>
+
+              {pairUnavailableMessage ? (
+                <p className="text-xs text-destructive font-mono">{pairUnavailableMessage}</p>
+              ) : null}
 
               <p className="text-xs text-muted-foreground font-mono flex items-center gap-1">
                 <span className="text-primary">⚡</span> powered by Hyperliquid perps

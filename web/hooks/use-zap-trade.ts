@@ -218,12 +218,7 @@ export function useZapTrade(
   }, [walletAddress, refreshBalances])
 
   useEffect(() => {
-    if (
-      !protocolAddressesReady ||
-      !tokenAddress ||
-      !amount ||
-      Number.parseFloat(amount) <= 0
-    ) {
+    if (!tokenAddress || !amount || Number.parseFloat(amount) <= 0) {
       setQuote(null)
       setQuoteLoading(false)
       return
@@ -251,7 +246,7 @@ export function useZapTrade(
       cancelled = true
       clearTimeout(timer)
     }
-  }, [tokenAddress, mode, amount, contracts, protocolAddressesReady])
+  }, [tokenAddress, mode, amount, contracts])
 
   const getWalletContext = useCallback(async () => {
     if (!wallet || !('getEthereumProvider' in wallet) || typeof wallet.getEthereumProvider !== 'function') {

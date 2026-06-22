@@ -10,8 +10,9 @@ import {ILeapTypes} from "./interfaces/ILeapTypes.sol";
 import {LeapBonding} from "./LeapBonding.sol";
 import {LeapCreatorRewards} from "./LeapCreatorRewards.sol";
 
-/// @dev 用户入口：发币 / 买卖（含 permit 变体）。收取手续费并计入 CreatorRewards。
-///      Zap 保持轻薄：校验、收费、转调 Bonding、emit 事件；毕业前后的路由由 Bonding 内部决定。
+/// @dev 用户入口：发币 / 买卖（含 permit 变体）。收取 0.75% swap 费并拆分：
+///      0.25% → CreatorRewards（创作者 claim）；0.5% → protocolTreasury。
+///      曲线与毕业后买卖均在 Zap 层扣费。毕业路由由 Bonding 内部决定。
 contract LeapZap is ILeapTypes, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -26,8 +27,14 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
 
     uint256 public constant MIN_SEED_USDC = 20_000_000; // 20 USDC
     uint256 public constant MIN_USDC_AMOUNT = 10_000_000; // 10 USDC
-    uint256 public constant buyFeeBps = 100; // 1%
-    uint256 public constant sellFeeBps = 100; // 1%
+    /// @dev 总 swap 费 0.75%（对齐 Alt Fun / 前端报价）；在 Zap 层扣除，曲线与毕业后均适用。
+    uint256 public constant buyFeeBps = 75;
+    uint256 public constant sellFeeBps = 75;
+    /// @dev 总手续费中创作者占比（3333 = 33.33% → 0.25% of volume）；余下归协议。
+    uint256 public constant creatorFeeShareBps = 3333;
+    address public constant protocolTreasury = 0x5945509FD601fB6b67bE2ff06ee72188057d45F3;
+
+    event ProtocolFeePaid(address indexed treasury, uint256 amount);
 
     IERC20 public immutable usdc;
     LeapBonding public immutable bonding;
@@ -148,10 +155,24 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
 
     function _payFee(address tokenAddress, uint256 fee) internal {
         if (fee == 0) return;
+
+        uint256 creatorFee = (fee * creatorFeeShareBps) / 10_000;
+        uint256 protocolFee = fee - creatorFee;
+
+        if (protocolFee > 0) {
+            usdc.safeTransfer(protocolTreasury, protocolFee);
+            emit ProtocolFeePaid(protocolTreasury, protocolFee);
+        }
+
+        if (creatorFee == 0) return;
         address creator = bonding.creatorOf(tokenAddress);
-        if (creator == address(0)) return;
-        usdc.forceApprove(address(creatorRewards), fee);
-        creatorRewards.recordFee(creator, fee);
+        if (creator == address(0)) {
+            usdc.safeTransfer(protocolTreasury, creatorFee);
+            emit ProtocolFeePaid(protocolTreasury, creatorFee);
+            return;
+        }
+        usdc.forceApprove(address(creatorRewards), creatorFee);
+        creatorRewards.recordFee(creator, creatorFee);
     }
 
     /// @dev permit 失败不阻断主流程（可能已被他人抢先提交），最终以授权额度为准。

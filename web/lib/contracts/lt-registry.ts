@@ -21,6 +21,116 @@ function pairKey(
 
 const LT_MULTICALL_CHUNK = 40
 
+type LtMetadata = {
+  asset: string
+  leverage: number
+  direction: 'LONG' | 'SHORT'
+}
+
+async function readLtMetadataSequential(
+  chunk: readonly `0x${string}`[],
+): Promise<Map<`0x${string}`, LtMetadata>> {
+  const out = new Map<`0x${string}`, LtMetadata>()
+
+  await Promise.all(
+    chunk.map(async (lt) => {
+      try {
+        const [asset, leverageRaw, isLong] = await Promise.all([
+          publicClient.readContract({
+            address: lt,
+            abi: bounceLtAbi,
+            functionName: 'targetAsset',
+          }),
+          publicClient.readContract({
+            address: lt,
+            abi: bounceLtAbi,
+            functionName: 'targetLeverage',
+          }),
+          publicClient.readContract({
+            address: lt,
+            abi: bounceLtAbi,
+            functionName: 'isLong',
+          }),
+        ])
+        const leverage = Number(leverageRaw / BigInt(1e18))
+        if (![2, 3, 5].includes(leverage)) return
+        out.set(lt, {
+          asset,
+          leverage,
+          direction: isLong ? 'LONG' : 'SHORT',
+        })
+      } catch {
+        // skip invalid LT
+      }
+    }),
+  )
+
+  return out
+}
+
+async function readLtMetadataChunk(
+  chunk: readonly `0x${string}`[],
+): Promise<Map<`0x${string}`, LtMetadata>> {
+  if (chunk.length === 0) return new Map()
+
+  let results: Awaited<ReturnType<typeof publicClient.multicall>> | null = null
+  try {
+    const contracts = chunk.flatMap((lt) => [
+      {
+        address: lt,
+        abi: bounceLtAbi,
+        functionName: 'targetAsset' as const,
+      },
+      {
+        address: lt,
+        abi: bounceLtAbi,
+        functionName: 'targetLeverage' as const,
+      },
+      {
+        address: lt,
+        abi: bounceLtAbi,
+        functionName: 'isLong' as const,
+      },
+    ])
+    results = await publicClient.multicall({
+      contracts,
+      allowFailure: true,
+      multicallAddress: MULTICALL3_ADDRESS,
+    })
+  } catch {
+    results = null
+  }
+
+  if (results) {
+    const out = new Map<`0x${string}`, LtMetadata>()
+    for (let i = 0; i < chunk.length; i++) {
+      const assetResult = results[i * 3]
+      const leverageResult = results[i * 3 + 1]
+      const isLongResult = results[i * 3 + 2]
+      if (
+        assetResult.status !== 'success' ||
+        leverageResult.status !== 'success' ||
+        isLongResult.status !== 'success'
+      ) {
+        continue
+      }
+
+      const leverage = Number(leverageResult.result / BigInt(1e18))
+      if (![2, 3, 5].includes(leverage)) continue
+
+      out.set(chunk[i]!, {
+        asset: assetResult.result,
+        leverage,
+        direction: isLongResult.result ? 'LONG' : 'SHORT',
+      })
+    }
+    // Anvil 等环境常无 Multicall3：multicall 不抛错但全部 failure，需回退逐条读。
+    if (out.size > 0) return out
+  }
+
+  return readLtMetadataSequential(chunk)
+}
+
 async function loadLtRegistry(): Promise<Map<LtPairKey, `0x${string}`>> {
   const map = new Map<LtPairKey, `0x${string}`>()
 
@@ -44,48 +154,10 @@ async function loadLtRegistry(): Promise<Map<LtPairKey, `0x${string}`>> {
 
   for (let offset = 0; offset < lts.length; offset += LT_MULTICALL_CHUNK) {
     const chunk = lts.slice(offset, offset + LT_MULTICALL_CHUNK)
-    const contracts = chunk.flatMap((lt) => [
-      {
-        address: lt,
-        abi: bounceLtAbi,
-        functionName: 'targetAsset' as const,
-      },
-      {
-        address: lt,
-        abi: bounceLtAbi,
-        functionName: 'targetLeverage' as const,
-      },
-      {
-        address: lt,
-        abi: bounceLtAbi,
-        functionName: 'isLong' as const,
-      },
-    ])
-
-    const results = await publicClient.multicall({
-      contracts,
-      allowFailure: true,
-      multicallAddress: MULTICALL3_ADDRESS,
-    })
-
-    for (let i = 0; i < chunk.length; i++) {
-      const assetResult = results[i * 3]
-      const leverageResult = results[i * 3 + 1]
-      const isLongResult = results[i * 3 + 2]
-      if (
-        assetResult.status !== 'success' ||
-        leverageResult.status !== 'success' ||
-        isLongResult.status !== 'success'
-      ) {
-        continue
-      }
-
-      const leverage = Number(leverageResult.result / BigInt(1e18))
-      if (![2, 3, 5].includes(leverage)) continue
-
-      const direction = isLongResult.result ? 'LONG' : 'SHORT'
-      const key = pairKey(assetResult.result, leverage, direction)
-      if (!map.has(key)) map.set(key, chunk[i]!)
+    const metadataByLt = await readLtMetadataChunk(chunk)
+    for (const [lt, meta] of metadataByLt) {
+      const key = pairKey(meta.asset, meta.leverage, meta.direction)
+      if (!map.has(key)) map.set(key, lt)
     }
   }
 
