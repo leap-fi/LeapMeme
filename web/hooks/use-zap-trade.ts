@@ -32,6 +32,12 @@ import {
   sendWalletBatch,
 } from '@/lib/contracts/wallet-batch'
 import {
+  isUserRejectedError,
+  signErc20Permit,
+  toPermitTuple,
+  tokenSupportsPermit,
+} from '@/lib/contracts/permit'
+import {
   quoteBuy,
   quoteSell,
   readAllowance,
@@ -50,7 +56,7 @@ export type TradeTxState =
   | { status: 'success'; hash: Hash }
   | { status: 'error'; message: string }
 
-export type TradeSimulationStep = 'approve' | 'buy' | 'sell'
+export type TradeSimulationStep = 'permit' | 'approve' | 'buy' | 'sell'
 
 export type TradeSimulationState =
   | { status: 'idle' }
@@ -335,16 +341,28 @@ export function useZapTrade(
       }
     }
 
+    const signPermitForZap = async (token: `0x${string}`) => {
+      setSimulationState({ status: 'running', step: 'permit' })
+      try {
+        const permit = await signErc20Permit(walletClient, {
+          token,
+          owner: address,
+          spender: contracts.zap,
+          value: MAX_ALLOWANCE,
+        })
+        setSimulationState({ status: 'success', step: 'permit' })
+        return toPermitTuple(permit)
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Permit signature failed.'
+        setSimulationState({ status: 'error', step: 'permit', message })
+        throw error
+      }
+    }
+
     const submitBuy = async (usdcAmount: bigint, minOut: bigint) => {
       const allowance = await readAllowance(address, contracts.usdc, contracts.zap)
-      const buyCall = {
-        to: contracts.zap,
-        data: encodeFunctionData({
-          abi: zapAbi,
-          functionName: 'buy',
-          args: [tokenAddress, usdcAmount, minOut, ZERO_ADDRESS],
-        }),
-      }
+      const buyArgs = [tokenAddress, usdcAmount, minOut, ZERO_ADDRESS] as const
 
       if (allowance >= usdcAmount) {
         return writeWithSimulation({
@@ -352,18 +370,42 @@ export function useZapTrade(
           address: contracts.zap,
           abi: zapAbi,
           functionName: 'buy',
-          args: [tokenAddress, usdcAmount, minOut, ZERO_ADDRESS],
+          args: buyArgs,
         })
       }
 
-      // First trade: batch approve + buy in one wallet confirmation (EIP-5792).
+      // Prefer EIP-2612: one on-chain tx, no approve footprint.
+      if (await tokenSupportsPermit(contracts.usdc)) {
+        try {
+          const p = await signPermitForZap(contracts.usdc)
+          return writeWithSimulation({
+            step: 'buy',
+            address: contracts.zap,
+            abi: zapAbi,
+            functionName: 'buyWithPermit',
+            args: [...buyArgs, p],
+          })
+        } catch (error) {
+          if (isUserRejectedError(error)) throw error
+        }
+      }
+
+      const buyCall = {
+        to: contracts.zap,
+        data: encodeFunctionData({
+          abi: zapAbi,
+          functionName: 'buy',
+          args: buyArgs,
+        }),
+      }
+
+      // EIP-5792 batch approve + buy in one wallet confirmation.
       try {
         return await sendWalletBatch(provider as any, address, [
           encodeApproveCall(contracts.usdc, contracts.zap),
           buyCall,
         ])
       } catch {
-        // Fallback for wallets without EIP-5792 support: approve then buy.
         const approveHash = await writeWithSimulation({
           step: 'approve',
           address: contracts.usdc,
@@ -377,21 +419,14 @@ export function useZapTrade(
           address: contracts.zap,
           abi: zapAbi,
           functionName: 'buy',
-          args: [tokenAddress, usdcAmount, minOut, ZERO_ADDRESS],
+          args: buyArgs,
         })
       }
     }
 
     const submitSell = async (tokenAmt: bigint, minUsdc: bigint) => {
       const allowance = await readAllowance(address, tokenAddress, contracts.zap)
-      const sellCall = {
-        to: contracts.zap,
-        data: encodeFunctionData({
-          abi: zapAbi,
-          functionName: 'sell',
-          args: [tokenAddress, tokenAmt, minUsdc],
-        }),
-      }
+      const sellArgs = [tokenAddress, tokenAmt, minUsdc] as const
 
       if (allowance >= tokenAmt) {
         return writeWithSimulation({
@@ -399,8 +434,32 @@ export function useZapTrade(
           address: contracts.zap,
           abi: zapAbi,
           functionName: 'sell',
-          args: [tokenAddress, tokenAmt, minUsdc],
+          args: sellArgs,
         })
+      }
+
+      if (await tokenSupportsPermit(tokenAddress)) {
+        try {
+          const p = await signPermitForZap(tokenAddress)
+          return writeWithSimulation({
+            step: 'sell',
+            address: contracts.zap,
+            abi: zapAbi,
+            functionName: 'sellWithPermit',
+            args: [...sellArgs, p],
+          })
+        } catch (error) {
+          if (isUserRejectedError(error)) throw error
+        }
+      }
+
+      const sellCall = {
+        to: contracts.zap,
+        data: encodeFunctionData({
+          abi: zapAbi,
+          functionName: 'sell',
+          args: sellArgs,
+        }),
       }
 
       try {
@@ -422,7 +481,7 @@ export function useZapTrade(
           address: contracts.zap,
           abi: zapAbi,
           functionName: 'sell',
-          args: [tokenAddress, tokenAmt, minUsdc],
+          args: sellArgs,
         })
       }
     }

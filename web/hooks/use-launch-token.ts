@@ -30,6 +30,13 @@ import {
 } from '@/lib/contracts/lt-registry'
 import { readAllowance, readErc20Balance } from '@/lib/contracts/trade-quote'
 import { MAX_ALLOWANCE } from '@/lib/contracts/wallet-batch'
+import {
+  isUserRejectedError,
+  signErc20Permit,
+  toPermitTuple,
+  tokenSupportsPermit,
+  type PermitTuple,
+} from '@/lib/contracts/permit'
 import { mineVanitySalt } from '@/lib/contracts/vanity-salt'
 
 export type LaunchParamsInput = {
@@ -126,7 +133,7 @@ function normalizeLaunchErrorMessage(error: unknown): string {
     message.includes('erc20insufficientallowance') ||
     message.includes('0xfb8f41b2')
   ) {
-    return 'USDC approval is required. Please try again — you will be asked to approve USDC first, then launch.'
+    return 'USDC authorization is required. Sign the permit in your wallet, or approve USDC to Zap and try again.'
   }
 
   if (
@@ -315,22 +322,40 @@ export function useLaunchToken() {
         )
         const needsApproval = allowance < seedUsdcAmount
 
+        let permit: PermitTuple | null = null
         if (needsApproval) {
-          setTxState({ status: 'approving' })
-          const approveSimulation = await publicClient.simulateContract({
-            address: CONTRACTS.usdc,
-            abi: erc20Abi,
-            functionName: 'approve',
-            args: [CONTRACTS.zap, MAX_ALLOWANCE],
-            account: walletAddress,
-          })
-          const approveHash = await walletClient.writeContract(
-            approveSimulation.request,
-          )
-          await waitForSuccessfulReceipt(
-            approveHash,
-            'USDC approval failed on-chain. Please try again.',
-          )
+          if (await tokenSupportsPermit(CONTRACTS.usdc)) {
+            try {
+              setTxState({ status: 'approving' })
+              const signed = await signErc20Permit(walletClient, {
+                token: CONTRACTS.usdc,
+                owner: walletAddress,
+                spender: CONTRACTS.zap,
+                value: MAX_ALLOWANCE,
+              })
+              permit = toPermitTuple(signed)
+            } catch (error) {
+              if (isUserRejectedError(error)) throw error
+            }
+          }
+
+          if (!permit) {
+            setTxState({ status: 'approving' })
+            const approveSimulation = await publicClient.simulateContract({
+              address: CONTRACTS.usdc,
+              abi: erc20Abi,
+              functionName: 'approve',
+              args: [CONTRACTS.zap, MAX_ALLOWANCE],
+              account: walletAddress,
+            })
+            const approveHash = await walletClient.writeContract(
+              approveSimulation.request,
+            )
+            await waitForSuccessfulReceipt(
+              approveHash,
+              'USDC approval failed on-chain. Please try again.',
+            )
+          }
         }
 
         const name = input.tokenName.trim()
@@ -351,11 +376,15 @@ export function useLaunchToken() {
         const params = buildLaunchParams(input, lt, saltHex)
 
         setTxState({ status: 'simulating' })
+        const launchFn = permit ? 'createTokenWithPermit' : 'createToken'
+        const launchArgs = permit
+          ? [params, seedUsdcAmount, permit]
+          : [params, seedUsdcAmount]
         const launchSimulation = await publicClient.simulateContract({
           address: CONTRACTS.zap,
           abi: zapAbi,
-          functionName: 'createToken',
-          args: [params, seedUsdcAmount],
+          functionName: launchFn,
+          args: launchArgs as any,
           account: walletAddress,
         })
 

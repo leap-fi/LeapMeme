@@ -256,7 +256,7 @@ export default function CreatePage() {
     if (ltLoading) return 'LOADING PAIR…'
     if (!ltAddress) return 'PAIR NOT AVAILABLE'
     if (isBusy) {
-      if (txState.status === 'approving') return 'APPROVING USDC…'
+      if (txState.status === 'approving') return 'AUTHORIZING USDC…'
       if (txState.status === 'mining_address') return 'MINING ADDRESS…'
       if (txState.status === 'simulating') return 'SIMULATING LAUNCH…'
       return 'CONFIRM IN WALLET…'
@@ -789,8 +789,8 @@ export default function CreatePage() {
               )}
 
               <p className="text-center text-muted-foreground text-sm font-mono">
-                Checks USDC balance, simulates the launch, then generates a vanity address (…00000), approves{' '}
-                <span className="text-primary">${seedAmount.toFixed(2)} USDC</span> if needed, and confirms on-chain
+                Checks USDC balance, simulates the launch, then generates a vanity address (…00000), signs a USDC permit (or on-chain approve if unsupported), and confirms on-chain with{' '}
+                <span className="text-primary">${seedAmount.toFixed(2)} USDC</span> seed
               </p>
 
               <p className="text-center text-muted-foreground/60 text-xs font-mono">

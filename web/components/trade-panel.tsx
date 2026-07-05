@@ -194,11 +194,13 @@ export function TradePanel({
   const simulationStepLabel =
     simulationState.status === 'idle'
       ? '—'
-      : simulationState.step === 'approve'
-        ? 'Approve'
-        : simulationState.step === 'buy'
-          ? 'Buy'
-          : 'Sell'
+      : simulationState.step === 'permit'
+        ? 'Sign permit'
+        : simulationState.step === 'approve'
+          ? 'Approve'
+          : simulationState.step === 'buy'
+            ? 'Buy'
+            : 'Sell'
 
   const closeTxModal = () => {
     if (isPending) return
