@@ -1,7 +1,8 @@
 'use client'
 
-import Image from 'next/image'
 import { Send } from 'lucide-react'
+import { Logo } from '@/components/logo'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -19,32 +20,32 @@ function XIcon({ className }: { className?: string }) {
 export function Footer() {
   return (
     <footer className="border-t border-border bg-card/50 px-6 py-4">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Left - Branding */}
-        <div className="flex items-center gap-4">
-          <Image src="/logo.svg" alt="LEAP" width={32} height={32} className="w-8 h-8" />
-          <span className="text-xs text-muted-foreground">2026 All rights reserved</span>
+      <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-3">
+        <div className="flex justify-center sm:justify-start">
+          <Logo width={32} height={32} className="h-8 w-8" />
         </div>
 
-        {/* Right - Social */}
-        <div className="flex items-center gap-4">
+        <p className="text-center text-xs text-muted-foreground">2026 All rights reserved</p>
+
+        <div className="flex items-center justify-center gap-3 sm:justify-end">
+          <ThemeToggle />
           <a
             href="https://x.com/leapfun"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary transition-colors"
+            className="text-muted-foreground transition-colors hover:text-primary"
             aria-label="X"
           >
-            <XIcon className="w-4 h-4" />
+            <XIcon className="h-4 w-4" />
           </a>
           <a
             href="https://t.me/leap_fun"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary transition-colors"
+            className="text-muted-foreground transition-colors hover:text-primary"
             aria-label="Telegram"
           >
-            <Send className="w-4 h-4" />
+            <Send className="h-4 w-4" />
           </a>
         </div>
       </div>

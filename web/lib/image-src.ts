@@ -67,6 +67,7 @@ function isLocalPublicAssetPath(src: string): boolean {
   return (
     path === DEFAULT_TOKEN_IMAGE ||
     path === '/logo.svg' ||
+    path === '/logo-light.svg' ||
     path === '/logo.png' ||
     path === '/placeholder-logo.svg' ||
     path === '/favicon.png' ||

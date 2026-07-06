@@ -1,6 +1,7 @@
 'use client'
 
 import { PrivyProvider } from '@privy-io/react-auth'
+import { useTheme } from 'next-themes'
 import { PRIVY_WALLET_LIST } from '@/lib/privy-config'
 import { hyperEvm } from '@/lib/contracts/chain'
 
@@ -11,6 +12,8 @@ export function PrivyProviderInner({
   appId: string
   children: React.ReactNode
 }) {
+  const { resolvedTheme } = useTheme()
+
   return (
     <PrivyProvider
       appId={appId}
@@ -23,7 +26,7 @@ export function PrivyProviderInner({
           },
         },
         appearance: {
-          theme: 'dark',
+          theme: resolvedTheme === 'light' ? 'light' : 'dark',
           accentColor: '#22c55e',
           showWalletLoginFirst: true,
           walletChainType: 'ethereum-only',

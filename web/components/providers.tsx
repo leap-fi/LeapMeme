@@ -3,6 +3,7 @@
 import { MarketsProvider } from '@/contexts/markets-context'
 import { WalletSessionProvider } from '@/contexts/wallet-session-context'
 import { WalletSessionGuard } from '@/components/wallet-session-guard'
+import { ThemeProvider } from '@/components/theme-provider'
 import { getPrivyAppId, isPrivyEnabled } from '@/lib/privy-enabled'
 import dynamic from 'next/dynamic'
 
@@ -18,16 +19,21 @@ function AppProviders({ children }: { children: React.ReactNode }) {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const appId = getPrivyAppId()
-  if (!isPrivyEnabled() || !appId) {
-    return <AppProviders>{children}</AppProviders>
-  }
+  const content =
+    !isPrivyEnabled() || !appId ? (
+      <AppProviders>{children}</AppProviders>
+    ) : (
+      <PrivyProviderInner appId={appId}>
+        <WalletSessionProvider>
+          <WalletSessionGuard />
+          <AppProviders>{children}</AppProviders>
+        </WalletSessionProvider>
+      </PrivyProviderInner>
+    )
 
   return (
-    <PrivyProviderInner appId={appId}>
-      <WalletSessionProvider>
-        <WalletSessionGuard />
-        <AppProviders>{children}</AppProviders>
-      </WalletSessionProvider>
-    </PrivyProviderInner>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+      {content}
+    </ThemeProvider>
   )
 }
