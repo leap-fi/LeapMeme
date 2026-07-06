@@ -51,7 +51,7 @@ export default function Home() {
   )
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-transparent">
       <Header />
 
       <PriceTicker />

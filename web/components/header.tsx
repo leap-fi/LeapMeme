@@ -12,7 +12,7 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex flex-nowrap items-center gap-3 border-b border-border bg-background px-4 py-3 md:grid md:grid-cols-[1fr_400px_1fr] md:gap-4">
+      <header className="sticky top-0 z-30 flex flex-nowrap items-center gap-3 border-b border-border/80 bg-background/60 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/50 md:grid md:grid-cols-[1fr_400px_1fr] md:gap-4">
         {/* Logo */}
         <Link href="/" className="flex shrink-0 cursor-pointer items-center gap-2 md:justify-self-start">
           <Logo width={40} height={40} className="h-10 w-10" priority />

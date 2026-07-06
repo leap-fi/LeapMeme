@@ -176,6 +176,9 @@ importers:
       viem:
         specifier: ^2.51.0
         version: 2.51.0(bufferutil@4.1.0)(typescript@5.7.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      webgl-fluid-enhanced:
+        specifier: ^0.8.0
+        version: 0.8.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -4246,7 +4249,6 @@ packages:
 
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
-    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   valtio@1.13.2:
@@ -4333,6 +4335,9 @@ packages:
 
   webextension-polyfill@0.10.0:
     resolution: {integrity: sha512-c5s35LgVa5tFaHhrZDnr3FpQpjj1BB+RXhLTYUxGqBVN460HkbM8TBtEqdXWbpTKfzwCcjAZVF7zXCYSKtcp9g==}
+
+  webgl-fluid-enhanced@0.8.0:
+    resolution: {integrity: sha512-Yj3+AfQYC6bENe3mTpj1XExVfSZCG6pGxAqGXluUgdjCPCP8rvjrHXy4P5LChlJUgL8kf4E9dgmv5nLXjTJIAg==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -9503,7 +9508,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@5.7.3)(zod@3.25.76)
+      abitype: 1.2.4(typescript@5.7.3)(zod@3.25.76)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.7.3
@@ -10530,6 +10535,8 @@ snapshots:
       - zod
 
   webextension-polyfill@0.10.0: {}
+
+  webgl-fluid-enhanced@0.8.0: {}
 
   webidl-conversions@3.0.1: {}
 

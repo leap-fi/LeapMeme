@@ -212,7 +212,7 @@ export default function CoinPage() {
 
   if (!resolvedToken) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-transparent">
         <h1 className="text-4xl font-bold text-primary mb-4">404</h1>
         <p className="text-muted-foreground mb-6">Token not found</p>
         <Link href="/" className="text-primary hover:underline flex items-center gap-2">
@@ -281,7 +281,7 @@ export default function CoinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-transparent">
       {/* Price Ticker */}
       <PriceTicker />
       

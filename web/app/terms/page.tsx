@@ -6,7 +6,7 @@ import { Footer } from '@/components/footer'
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-transparent flex flex-col">
       <Header />
       <PriceTicker />
 

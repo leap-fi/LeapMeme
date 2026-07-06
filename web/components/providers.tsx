@@ -13,6 +13,11 @@ const PrivyProviderInner = dynamic(
   { ssr: false },
 )
 
+const FluidBackground = dynamic(
+  () => import('@/components/fluid-background').then((m) => m.FluidBackground),
+  { ssr: false },
+)
+
 function AppProviders({ children }: { children: React.ReactNode }) {
   return <MarketsProvider>{children}</MarketsProvider>
 }
@@ -33,7 +38,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-      {content}
+      <FluidBackground />
+      <div className="relative z-10">{content}</div>
     </ThemeProvider>
   )
 }

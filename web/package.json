@@ -65,6 +65,7 @@
     "turndown": "^7.2.4",
     "vaul": "^1.1.2",
     "viem": "^2.51.0",
+    "webgl-fluid-enhanced": "^0.8.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
