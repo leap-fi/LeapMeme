@@ -1,8 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
-import { Send, FileText, ExternalLink } from 'lucide-react'
+import { Send } from 'lucide-react'
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -23,29 +22,8 @@ export function Footer() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         {/* Left - Branding */}
         <div className="flex items-center gap-4">
-          <Image src="/logo.png" alt="LEAP" width={32} height={32} className="w-8 h-8" />
+          <Image src="/logo.svg" alt="LEAP" width={32} height={32} className="w-8 h-8" />
           <span className="text-xs text-muted-foreground">2026 All rights reserved</span>
-        </div>
-
-        {/* Center - Links */}
-        <div className="flex items-center gap-6">
-          <a
-            href="https://docs.leap.fun/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-          >
-            <FileText className="w-3 h-3" />
-            Docs
-          </a>
-          <Link href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-            <ExternalLink className="w-3 h-3" />
-            Terms
-          </Link>
-          <Link href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-            <ExternalLink className="w-3 h-3" />
-            Privacy
-          </Link>
         </div>
 
         {/* Right - Social */}

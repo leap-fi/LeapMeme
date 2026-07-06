@@ -14,7 +14,7 @@ export function isPlaceholderTokenLogo(value: string | null | undefined): boolea
   const trimmed = value?.trim() ?? ''
   if (!trimmed || isLegacyDefaultTokenImage(trimmed)) return true
   const src = trimmed.toLowerCase()
-  return src === '/logo.png' || src === 'logo.png'
+  return src === '/logo.png' || src === 'logo.png' || src === '/logo.svg' || src === 'logo.svg'
 }
 
 export function resolveTokenLogoSrc(
@@ -66,8 +66,8 @@ function isLocalPublicAssetPath(src: string): boolean {
   if (path.startsWith('/images/')) return false
   return (
     path === DEFAULT_TOKEN_IMAGE ||
-    path === '/logo.png' ||
     path === '/logo.svg' ||
+    path === '/logo.png' ||
     path === '/placeholder-logo.svg' ||
     path === '/favicon.png' ||
     path === '/apple-icon.png' ||

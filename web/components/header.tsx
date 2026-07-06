@@ -16,7 +16,7 @@ export function Header() {
         {/* Logo */}
         <Link href="/" className="flex shrink-0 cursor-pointer items-center gap-2 md:justify-self-start">
           <Image
-            src="/logo.png"
+            src="/logo.svg"
             alt="LEAP"
             width={40}
             height={40}
