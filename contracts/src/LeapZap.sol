@@ -11,7 +11,7 @@ import {LeapBonding} from "./LeapBonding.sol";
 import {LeapCreatorRewards} from "./LeapCreatorRewards.sol";
 
 /// @dev 用户入口：发币 / 买卖（含 permit 变体）。收取 0.75% swap 费并拆分：
-///      0.25% → CreatorRewards（创作者 claim）；0.5% → protocolTreasury。
+///      0.50% → CreatorRewards（创作者 claim）；0.25% → protocolTreasury（即平台只有创作者的一半）。
 ///      曲线与毕业后买卖均在 Zap 层扣费。毕业路由由 Bonding 内部决定。
 contract LeapZap is ILeapTypes, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -25,13 +25,15 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
         bytes32 s;
     }
 
-    uint256 public constant MIN_SEED_USDC = 20_000_000; // 20 USDC
-    uint256 public constant MIN_USDC_AMOUNT = 10_000_000; // 10 USDC
+    /// @dev 经济参数部署时注入（见 LeapConfig）：Playground 与 Production 一处切换。
+    uint256 public immutable MIN_SEED_USDC; // createToken 最小 seed（0 = 不强制垫钱）
+    uint256 public immutable MIN_USDC_AMOUNT; // 单笔 buy 最小 USDC
+    uint256 public immutable MAX_USDC_PER_TRADE; // 单笔 buy/sell USDC 上限（全生命周期），max = 不限
     /// @dev 总 swap 费 0.75%（对齐 Alt Fun / 前端报价）；在 Zap 层扣除，曲线与毕业后均适用。
     uint256 public constant buyFeeBps = 75;
     uint256 public constant sellFeeBps = 75;
-    /// @dev 总手续费中创作者占比（3333 = 33.33% → 0.25% of volume）；余下归协议。
-    uint256 public constant creatorFeeShareBps = 3333;
+    /// @dev 总手续费中创作者占比（6667 = 66.67% → 0.50% of volume）；余下归协议（0.25%），即协议只有创作者的一半。
+    uint256 public constant creatorFeeShareBps = 6667;
     address public constant protocolTreasury = 0x5945509FD601fB6b67bE2ff06ee72188057d45F3;
 
     event ProtocolFeePaid(address indexed treasury, uint256 amount);
@@ -42,10 +44,21 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
 
     event TokenCreated(address indexed token, address indexed creator, address indexed ltAddress);
 
-    constructor(address usdc_, address bonding_, address creatorRewards_) {
+    constructor(
+        address usdc_,
+        address bonding_,
+        address creatorRewards_,
+        uint256 minSeedUsdc_,
+        uint256 minUsdcAmount_,
+        uint256 maxUsdcPerTrade_
+    ) {
+        require(maxUsdcPerTrade_ >= minUsdcAmount_, "max<min");
         usdc = IERC20(usdc_);
         bonding = LeapBonding(bonding_);
         creatorRewards = LeapCreatorRewards(creatorRewards_);
+        MIN_SEED_USDC = minSeedUsdc_;
+        MIN_USDC_AMOUNT = minUsdcAmount_;
+        MAX_USDC_PER_TRADE = maxUsdcPerTrade_;
     }
 
     // --- create ---
@@ -72,8 +85,11 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
         returns (address tokenAddr)
     {
         require(seedUsdcAmount >= MIN_SEED_USDC, "seed");
-        usdc.safeTransferFrom(msg.sender, address(this), seedUsdcAmount);
-        usdc.forceApprove(address(bonding), seedUsdcAmount);
+        require(seedUsdcAmount <= MAX_USDC_PER_TRADE, "max seed");
+        if (seedUsdcAmount > 0) {
+            usdc.safeTransferFrom(msg.sender, address(this), seedUsdcAmount);
+            usdc.forceApprove(address(bonding), seedUsdcAmount);
+        }
         tokenAddr = bonding.createToken(msg.sender, params, seedUsdcAmount);
         emit TokenCreated(tokenAddr, msg.sender, params.ltAddress);
     }
@@ -104,6 +120,7 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
         returns (uint256 tokensOut)
     {
         require(usdcAmount >= MIN_USDC_AMOUNT, "min buy");
+        require(usdcAmount <= MAX_USDC_PER_TRADE, "max buy");
         uint256 fee = (usdcAmount * buyFeeBps) / 10_000;
         uint256 net = usdcAmount - fee;
 
@@ -142,6 +159,7 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
         IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), tokenAmount);
         IERC20(tokenAddress).forceApprove(address(bonding), tokenAmount);
         uint256 gross = bonding.sell(msg.sender, tokenAddress, tokenAmount);
+        require(gross <= MAX_USDC_PER_TRADE, "max sell");
 
         uint256 fee = (gross * sellFeeBps) / 10_000;
         usdcOut = gross - fee;

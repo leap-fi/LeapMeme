@@ -10,6 +10,7 @@ import {LeapBonding} from "../src/LeapBonding.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
+import {LeapConfig} from "../src/LeapConfig.sol";
 
 interface IBounceGlobalStorage {
     function factory() external view returns (address);
@@ -92,15 +93,32 @@ contract DeployHyperEVM is Script {
     }
 
     function _deploy() internal {
+        // PROTOCOL_PROFILE=playground（默认，低风险体验版）| production
+        LeapConfig.Params memory cfg = _profile();
+
         tokenImpl = new LeapToken();
-        bonding = new LeapBonding(usdc, address(tokenImpl), bounceGlobalStorage);
+        bonding = new LeapBonding(
+            usdc, address(tokenImpl), bounceGlobalStorage, cfg.virtualUsdc, cfg.virtualToken, cfg.graduationUsdc
+        );
         rewards = new LeapCreatorRewards(usdc);
         router = new LeapRouter(address(bonding));
-        zap = new LeapZap(usdc, address(bonding), address(rewards));
+        zap = new LeapZap(
+            usdc, address(bonding), address(rewards), cfg.minSeedUsdc, cfg.minUsdcAmount, cfg.maxUsdcPerTrade
+        );
 
         bonding.setZap(address(zap));
         bonding.setRouter(address(router));
         rewards.setZap(address(zap));
+    }
+
+    function _profile() internal view returns (LeapConfig.Params memory) {
+        string memory name = vm.envOr("PROTOCOL_PROFILE", string("playground"));
+        if (keccak256(bytes(name)) == keccak256(bytes("production"))) {
+            console2.log("Protocol profile: production");
+            return LeapConfig.production();
+        }
+        console2.log("Protocol profile: playground");
+        return LeapConfig.playground();
     }
 
     function _writeJson() internal {

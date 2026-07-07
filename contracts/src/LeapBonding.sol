@@ -29,11 +29,13 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant VANITY_MASK = (1 << 20) - 1;
-    uint256 private constant VIRTUAL_USDC = 3_000_000_000; // 3000 USDC (6 decimals)
-    uint256 private constant VIRTUAL_TOKEN = 1_073_000_000 ether;
 
-    /// @dev 本地演示毕业阈值：1000 USDC。生产再调高（与后端 BondingCurveGraduationTargetUSD 对齐）。
-    uint256 public constant GRADUATION_USDC = 1_000_000_000; // 1000 USDC (6 decimals)
+    /// @dev 曲线虚拟储备（部署时注入，见 LeapConfig）。VIRTUAL_TOKEN 为 18 位小数。
+    uint256 public immutable VIRTUAL_USDC;
+    uint256 public immutable VIRTUAL_TOKEN;
+
+    /// @dev 毕业阈值（真实募集 USDC，6 位小数）。与后端 BondingCurveGraduationTargetUSD 对齐。
+    uint256 public immutable GRADUATION_USDC;
 
     IERC20 public immutable usdc;
     address public immutable tokenImplementation;
@@ -59,10 +61,22 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
         _;
     }
 
-    constructor(address usdc_, address tokenImplementation_, address bounceGlobalStorage_) {
+    constructor(
+        address usdc_,
+        address tokenImplementation_,
+        address bounceGlobalStorage_,
+        uint256 virtualUsdc_,
+        uint256 virtualToken_,
+        uint256 graduationUsdc_
+    ) {
+        require(virtualUsdc_ > 0 && virtualToken_ > 0, "virtual");
+        require(graduationUsdc_ > 0, "graduation");
         usdc = IERC20(usdc_);
         tokenImplementation = tokenImplementation_;
         bounceGlobalStorage = bounceGlobalStorage_;
+        VIRTUAL_USDC = virtualUsdc_;
+        VIRTUAL_TOKEN = virtualToken_;
+        GRADUATION_USDC = graduationUsdc_;
     }
 
     function setZap(address zap_) external {
@@ -115,11 +129,13 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
         ltOf[token] = params.ltAddress;
         creatorOf[token] = creator;
 
-        usdc.safeTransferFrom(msg.sender, address(this), seedUsdc);
-
-        uint256 tokensOut = _applyBuyToCurve(token, seedUsdc);
-        LeapToken(token).mint(creator, tokensOut);
-        _maybeGraduate(token);
+        // seed == 0 时只登记 token（不垫钱）；曲线在首笔 buy 用虚拟储备初始化。
+        if (seedUsdc > 0) {
+            usdc.safeTransferFrom(msg.sender, address(this), seedUsdc);
+            uint256 tokensOut = _applyBuyToCurve(token, seedUsdc);
+            LeapToken(token).mint(creator, tokensOut);
+            _maybeGraduate(token);
+        }
     }
 
     function buy(address buyer, address token, uint256 usdcIn)

@@ -14,6 +14,7 @@ import {LeapBonding} from "../src/LeapBonding.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
+import {LeapConfig} from "../src/LeapConfig.sol";
 import {IUniswapV2Pair} from "../src/external/univ2/IUniswapV2.sol";
 
 contract LeapProtocolTest is Test {
@@ -51,11 +52,22 @@ contract LeapProtocolTest is Test {
         factory = new MockBounceFactory(lts, address(this));
         globalStorage = new MockGlobalStorage(address(factory));
 
+        // 本套用例覆盖大额买卖/毕业行为，使用 production 参数（20 seed / 1000 毕业 / 不封顶）。
+        LeapConfig.Params memory cfg = LeapConfig.production();
         tokenImpl = new LeapToken();
-        bonding = new LeapBonding(address(usdc), address(tokenImpl), address(globalStorage));
+        bonding = new LeapBonding(
+            address(usdc),
+            address(tokenImpl),
+            address(globalStorage),
+            cfg.virtualUsdc,
+            cfg.virtualToken,
+            cfg.graduationUsdc
+        );
         rewards = new LeapCreatorRewards(address(usdc));
         router = new LeapRouter(address(bonding));
-        zap = new LeapZap(address(usdc), address(bonding), address(rewards));
+        zap = new LeapZap(
+            address(usdc), address(bonding), address(rewards), cfg.minSeedUsdc, cfg.minUsdcAmount, cfg.maxUsdcPerTrade
+        );
 
         bonding.setZap(address(zap));
         bonding.setRouter(address(router));
@@ -348,8 +360,10 @@ contract LeapProtocolTest is Test {
         assertEq(zap.MIN_USDC_AMOUNT(), 10_000_000);
         assertEq(zap.buyFeeBps(), 75);
         assertEq(zap.sellFeeBps(), 75);
-        assertEq(zap.creatorFeeShareBps(), 3333);
+        assertEq(zap.creatorFeeShareBps(), 6667);
         assertEq(zap.protocolTreasury(), 0x5945509FD601fB6b67bE2ff06ee72188057d45F3);
+        assertEq(zap.MAX_USDC_PER_TRADE(), type(uint256).max);
         assertEq(bonding.GRADUATION_USDC(), 1_000_000_000);
+        assertEq(bonding.VIRTUAL_USDC(), 3_000_000_000);
     }
 }

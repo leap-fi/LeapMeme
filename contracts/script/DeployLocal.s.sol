@@ -13,6 +13,7 @@ import {LeapBonding} from "../src/LeapBonding.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
+import {LeapConfig} from "../src/LeapConfig.sol";
 
 /// @dev 本地 Anvil 一键部署：
 ///        forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
@@ -62,11 +63,21 @@ contract DeployLocal is Script {
         factory = new MockBounceFactory(lts, msg.sender);
         globalStorage = new MockGlobalStorage(address(factory));
 
+        LeapConfig.Params memory cfg = LeapConfig.playground();
         tokenImpl = new LeapToken();
-        bonding = new LeapBonding(address(usdc), address(tokenImpl), address(globalStorage));
+        bonding = new LeapBonding(
+            address(usdc),
+            address(tokenImpl),
+            address(globalStorage),
+            cfg.virtualUsdc,
+            cfg.virtualToken,
+            cfg.graduationUsdc
+        );
         rewards = new LeapCreatorRewards(address(usdc));
         router = new LeapRouter(address(bonding));
-        zap = new LeapZap(address(usdc), address(bonding), address(rewards));
+        zap = new LeapZap(
+            address(usdc), address(bonding), address(rewards), cfg.minSeedUsdc, cfg.minUsdcAmount, cfg.maxUsdcPerTrade
+        );
 
         bonding.setZap(address(zap));
         bonding.setRouter(address(router));
