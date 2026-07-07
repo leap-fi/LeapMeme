@@ -13,7 +13,10 @@ import {
   type ProfileBalanceItem,
   type ProfileCreatedTokenItem,
   type ProfileRewardTokenItem,
+  type ProfileRedeemStatus,
 } from './profile-page-view'
+import { IS_PLAYGROUND } from '@/lib/protocol-profile'
+import { usePlaygroundUnwind } from '@/hooks/use-playground-unwind'
 import { getUserPositions } from '@/lib/apis/meme-server/user-positions.api'
 import { getTokenDetail } from '@/lib/apis/meme-server/token-detail.api'
 import { getUserCreatedTokens } from '@/lib/apis/meme-server/user-created.api'
@@ -191,6 +194,11 @@ export function ProfilePagePrivy() {
 
   const creatorRewards = useCreatorRewards(walletForChain)
   const transferCreator = useTransferCreator(walletForChain)
+  const playgroundUnwind = usePlaygroundUnwind(walletForChain)
+
+  const [redeemStatuses, setRedeemStatuses] = useState<Record<string, ProfileRedeemStatus>>({})
+  const [redeemStatusesLoading, setRedeemStatusesLoading] = useState(false)
+  const [redeemingTokenId, setRedeemingTokenId] = useState<string | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -381,6 +389,80 @@ export function ProfilePagePrivy() {
     }
   }, [authenticated, walletAddress])
 
+  useEffect(() => {
+    let disposed = false
+    async function loadRedeemStatuses() {
+      if (!IS_PLAYGROUND || !authenticated || !walletAddress || createdTokens.length === 0) {
+        if (!disposed) {
+          setRedeemStatuses({})
+          setRedeemStatusesLoading(false)
+        }
+        return
+      }
+      setRedeemStatusesLoading(true)
+      try {
+        const entries = await Promise.all(
+          createdTokens.map(async (token) => {
+            if (!token.rawAddress) return null
+            try {
+              const status = await playgroundUnwind.getStatus({
+                tokenAddress: token.rawAddress,
+                bondingAddress: token.bondingAddress,
+              })
+              return [token.id, status] as const
+            } catch {
+              return null
+            }
+          }),
+        )
+        if (!disposed) {
+          const next: Record<string, ProfileRedeemStatus> = {}
+          for (const entry of entries) {
+            if (entry) next[entry[0]] = entry[1]
+          }
+          setRedeemStatuses(next)
+        }
+      } finally {
+        if (!disposed) setRedeemStatusesLoading(false)
+      }
+    }
+    void loadRedeemStatuses()
+    return () => {
+      disposed = true
+    }
+    // playgroundUnwind.getStatus is stable per walletAddress
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, walletAddress, createdTokens])
+
+  const handleRedeemLockedFunds = async (tokenId: string) => {
+    const token = createdTokens.find((t) => t.id === tokenId)
+    if (!token?.rawAddress) return
+    setRedeemingTokenId(tokenId)
+    try {
+      await playgroundUnwind.unwind({
+        tokenAddress: token.rawAddress,
+        bondingAddress: token.bondingAddress,
+      })
+      const status = await playgroundUnwind.getStatus({
+        tokenAddress: token.rawAddress,
+        bondingAddress: token.bondingAddress,
+      })
+      setRedeemStatuses((prev) => ({ ...prev, [tokenId]: status }))
+    } catch {
+      // error surfaced via txState
+    } finally {
+      setRedeemingTokenId(null)
+    }
+  }
+
+  const redeemUsdcOut =
+    playgroundUnwind.txState.status === 'success'
+      ? bigintToNumber(playgroundUnwind.txState.usdcOut, USDC_DECIMALS).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 6,
+        })
+      : null
+
   const handleDisconnect = async () => {
     await logout()
     router.push('/')
@@ -450,6 +532,19 @@ export function ProfilePagePrivy() {
       }
       onTransferCreatorRole={(tokenId, newOwner) => void handleTransferCreatorRole(tokenId, newOwner)}
       onDismissTransferCreatorTxModal={transferCreator.resetTxState}
+      redeemStatuses={redeemStatuses}
+      redeemStatusesLoading={redeemStatusesLoading}
+      redeemingTokenId={redeemingTokenId}
+      redeemTxStatus={playgroundUnwind.txState.status}
+      redeemTxMessage={
+        playgroundUnwind.txState.status === 'error' ? playgroundUnwind.txState.message : null
+      }
+      redeemTxHash={
+        playgroundUnwind.txState.status === 'success' ? playgroundUnwind.txState.hash : null
+      }
+      redeemUsdcOut={redeemUsdcOut}
+      onRedeemLockedFunds={(tokenId) => void handleRedeemLockedFunds(tokenId)}
+      onDismissRedeemTxModal={playgroundUnwind.resetTxState}
       onConnect={loginWithWallet}
       onDisconnect={handleDisconnect}
       needsReconnect={session?.needsReconnect ?? false}

@@ -95,13 +95,17 @@ const erc20MetaABIJSON = `[
 ]`
 
 const bondingABIJSON = `[
-  {"type":"function","name":"isGraduated","inputs":[{"name":"token","type":"address"}],"outputs":[{"type":"bool"}],"stateMutability":"view"}
+  {"type":"function","name":"isGraduated","inputs":[{"name":"token","type":"address"}],"outputs":[{"type":"bool"}],"stateMutability":"view"},
+  {"type":"function","name":"raisedUsdc","inputs":[{"name":"token","type":"address"}],"outputs":[{"type":"uint256"}],"stateMutability":"view"}
 ]`
 
 const bounceLtABIJSON = `[
   {"type":"function","name":"targetAsset","inputs":[],"outputs":[{"type":"string"}],"stateMutability":"view"},
   {"type":"function","name":"targetLeverage","inputs":[],"outputs":[{"type":"uint256"}],"stateMutability":"view"},
-  {"type":"function","name":"isLong","inputs":[],"outputs":[{"type":"bool"}],"stateMutability":"view"}
+  {"type":"function","name":"isLong","inputs":[],"outputs":[{"type":"bool"}],"stateMutability":"view"},
+  {"type":"function","name":"exchangeRate","inputs":[],"outputs":[{"type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"totalAssets","inputs":[],"outputs":[{"type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"mintPaused","inputs":[],"outputs":[{"type":"bool"}],"stateMutability":"view"}
 ]`
 
 const bounceFactoryABIJSON = `[

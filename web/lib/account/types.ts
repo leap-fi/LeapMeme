@@ -1,9 +1,3 @@
-export type AccountApiResponse<T> = {
-  code: number
-  msg: string
-  data: T
-}
-
 export type AccountLeverageToken = {
   address: string
   targetLeverage: number
@@ -28,7 +22,7 @@ export type AccountMarket = {
   warning?: boolean
   chain?: string
   leverage: AccountLeverageToken[]
-  /** Optional fallback values from /account/markets */
+  /** Optional fallback values from /market/markets */
   price?: number | string
   change?: number | string
   h24ChangePer?: number | string

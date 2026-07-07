@@ -12,6 +12,8 @@ interface TradeHistoryProps {
   contractAddressOverride?: string | null
   /** Omit outer card shell and section title (e.g. inside coin page tabs). */
   embedded?: boolean
+  /** Bump to reload once (e.g. after a successful trade). */
+  refreshKey?: number
 }
 
 type TradeRow = {
@@ -106,7 +108,12 @@ function toTradeRows(items: TokenTradeDto[]): TradeRow[] {
   }))
 }
 
-export function TradeHistory({ token, contractAddressOverride, embedded }: TradeHistoryProps) {
+export function TradeHistory({
+  token,
+  contractAddressOverride,
+  embedded,
+  refreshKey = 0,
+}: TradeHistoryProps) {
   const [tradesApiData, setTradesApiData] = useState<TokenTradeDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -138,18 +145,14 @@ export function TradeHistory({ token, contractAddressOverride, embedded }: Trade
       }
       try {
         const response = await getTokenTrades({ address })
-        if (!disposed) {
-          setTradesApiData(response.data)
-        }
+        if (!disposed) setTradesApiData(response.data)
       } catch (err) {
         if (!disposed) {
           setTradesApiData([])
           setError(err instanceof Error ? err.message : 'Failed to load trades')
         }
       } finally {
-        if (!disposed) {
-          setLoading(false)
-        }
+        if (!disposed) setLoading(false)
       }
     }
 
@@ -158,13 +161,19 @@ export function TradeHistory({ token, contractAddressOverride, embedded }: Trade
     return () => {
       disposed = true
     }
-  }, [contractAddressOverride, token.contractAddress, token.symbol])
+  }, [contractAddressOverride, token.contractAddress, token.symbol, refreshKey])
 
   const trades = useMemo(() => toTradeRows(tradesApiData), [tradesApiData])
   const tokenColumnLabel = token.symbol.trim().toUpperCase() || 'TOKEN'
+  const tableHeaderClass = embedded
+    ? 'text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground'
+    : 'text-left text-xs font-semibold text-muted-foreground'
+  const tableRowClass = embedded
+    ? 'border-b border-border/50 transition-colors hover:bg-secondary/30'
+    : 'hover:bg-secondary/50 transition-colors'
 
   return (
-    <div className={embedded ? undefined : 'bg-card rounded-xl p-6'}>
+    <div className={embedded ? 'space-y-1' : 'bg-card rounded-xl p-6'}>
       {!embedded && (
         <h3 className="text-lg font-semibold text-foreground mb-4">Recent Trades</h3>
       )}
@@ -179,25 +188,25 @@ export function TradeHistory({ token, contractAddressOverride, embedded }: Trade
         <div className="px-2 py-2 text-sm text-muted-foreground">No trades yet.</div>
       )}
       {!loading && !error && trades.length > 0 && (
-        <div className="-mx-2 overflow-x-auto">
+        <div className={embedded ? 'overflow-x-auto' : '-mx-2 overflow-x-auto'}>
           <table className="w-full min-w-[36rem] table-fixed border-collapse text-sm">
             <thead>
-              <tr className="text-left text-xs font-semibold text-muted-foreground">
-                <th className="w-[22%] whitespace-nowrap px-2 pb-3">ACCOUNT</th>
-                <th className="w-[10%] whitespace-nowrap px-2 pb-3">TYPE</th>
-                <th className="w-[18%] whitespace-nowrap px-2 pb-3">USDC</th>
-                <th className="w-[18%] whitespace-nowrap px-2 pb-3">{tokenColumnLabel}</th>
-                <th className="w-[14%] whitespace-nowrap px-2 pb-3">TIME</th>
-                <th className="w-[18%] whitespace-nowrap px-2 pb-3 text-right">TXN</th>
+              <tr className={tableHeaderClass}>
+                <th className={`w-[22%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>ACCOUNT</th>
+                <th className={`w-[10%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>TYPE</th>
+                <th className={`w-[18%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>USDC</th>
+                <th className={`w-[18%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{tokenColumnLabel}</th>
+                <th className={`w-[14%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>TIME</th>
+                <th className={`w-[18%] whitespace-nowrap pb-3 text-right ${embedded ? 'px-4' : 'px-2'}`}>TXN</th>
               </tr>
             </thead>
             <tbody>
               {trades.map((trade) => (
                 <tr
                   key={trade.id}
-                  className="hover:bg-secondary/50 transition-colors"
+                  className={tableRowClass}
                 >
-                  <td className="whitespace-nowrap px-2 py-2 font-mono text-foreground">
+                  <td className={`whitespace-nowrap py-2.5 font-mono text-foreground ${embedded ? 'px-4' : 'px-2 py-2'}`}>
                     <span className="inline-flex items-center gap-1">
                       {shortAddress(trade.account)}
                       <button
@@ -215,25 +224,32 @@ export function TradeHistory({ token, contractAddressOverride, embedded }: Trade
                     </span>
                   </td>
                   <td
-                    className={`whitespace-nowrap px-2 py-2 font-semibold ${
-                      trade.type === 'buy' ? 'text-primary' : 'text-destructive'
-                    }`}
+                    className={`whitespace-nowrap font-semibold ${
+                      embedded ? 'px-4 py-2.5' : 'px-2 py-2'
+                    } ${trade.type === 'buy' ? 'text-primary' : 'text-destructive'}`}
                   >
                     {trade.type.toUpperCase()}
                   </td>
-                  <td className="max-w-0 truncate whitespace-nowrap px-2 py-2 text-foreground" title={trade.usdc}>
+                  <td
+                    className={`max-w-0 truncate whitespace-nowrap text-foreground ${
+                      embedded ? 'px-4 py-2.5' : 'px-2 py-2'
+                    }`}
+                    title={trade.usdc}
+                  >
                     {trade.usdc}
                   </td>
                   <td
-                    className={`max-w-0 truncate whitespace-nowrap px-2 py-2 font-semibold ${
-                      trade.type === 'buy' ? 'text-primary' : 'text-destructive'
-                    }`}
+                    className={`max-w-0 truncate whitespace-nowrap font-semibold ${
+                      embedded ? 'px-4 py-2.5' : 'px-2 py-2'
+                    } ${trade.type === 'buy' ? 'text-primary' : 'text-destructive'}`}
                     title={trade.hos}
                   >
                     {trade.hos}
                   </td>
-                  <td className="whitespace-nowrap px-2 py-2 text-muted-foreground">{trade.time}</td>
-                  <td className="whitespace-nowrap px-2 py-2 text-right">
+                  <td className={`whitespace-nowrap text-muted-foreground ${embedded ? 'px-4 py-2.5' : 'px-2 py-2'}`}>
+                    {trade.time}
+                  </td>
+                  <td className={`whitespace-nowrap text-right ${embedded ? 'px-4 py-2.5' : 'px-2 py-2'}`}>
                     <a
                       href={`${hyperEvm.blockExplorers.default.url}/tx/${trade.txHash}`}
                       target="_blank"

@@ -12,7 +12,7 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex flex-nowrap items-center gap-3 border-b border-border/80 bg-background/60 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/50 md:grid md:grid-cols-[1fr_400px_1fr] md:gap-4">
+      <header className="sticky top-0 z-30 flex flex-nowrap items-center gap-3 border-b border-border/60 bg-background/20 px-4 py-3 backdrop-blur-sm supports-[backdrop-filter]:bg-background/15 md:grid md:grid-cols-[1fr_400px_1fr] md:gap-4">
         {/* Logo */}
         <Link href="/" className="flex shrink-0 cursor-pointer items-center gap-2 md:justify-self-start">
           <Logo width={40} height={40} className="h-10 w-10" priority />
@@ -25,7 +25,7 @@ export function Header() {
             className="relative flex h-9 w-full items-center"
           >
             <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
-            <div className="flex h-full w-full items-center truncate rounded-lg bg-secondary pl-10 pr-4 text-left text-sm whitespace-nowrap text-muted-foreground">
+            <div className="flex h-full w-full items-center truncate rounded-lg border border-border/30 bg-background/20 pl-10 pr-4 text-left text-sm whitespace-nowrap text-muted-foreground backdrop-blur-md supports-[backdrop-filter]:bg-background/15">
               Search for tokens...
             </div>
           </button>

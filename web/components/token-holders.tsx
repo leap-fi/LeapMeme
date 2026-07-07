@@ -158,8 +158,16 @@ export function TokenHolders({
     }
   }, [positions, totalSupply, decimals])
 
+  const tableHeaderClass = embedded
+    ? 'text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground'
+    : 'text-left text-xs font-semibold text-muted-foreground'
+  const tableRowClass = embedded
+    ? 'border-b border-border/50 transition-colors hover:bg-secondary/30'
+    : 'hover:bg-secondary/50 transition-colors'
+  const cellPad = embedded ? 'px-4 py-2.5' : 'px-2 py-2.5'
+
   return (
-    <div className={embedded ? undefined : 'bg-card rounded-xl p-6'}>
+    <div className={embedded ? 'space-y-1' : 'bg-card rounded-xl p-6'}>
       {!embedded && (
         <h3 className="text-lg font-semibold text-foreground mb-4">Top Holders</h3>
       )}
@@ -175,15 +183,15 @@ export function TokenHolders({
       )}
 
       {!loading && !error && holders.length > 0 && (
-        <div className="-mx-2 overflow-x-auto">
+        <div className={embedded ? 'overflow-x-auto' : '-mx-2 overflow-x-auto'}>
           <table className="w-full min-w-[32rem] table-fixed border-collapse text-sm">
             <thead>
-              <tr className="text-left text-xs font-semibold text-muted-foreground">
-                <th className="w-[8%] whitespace-nowrap px-2 pb-3">#</th>
-                <th className="w-[28%] whitespace-nowrap px-2 pb-3">WALLET</th>
-                <th className="w-[20%] whitespace-nowrap px-2 pb-3">{tokenColumnLabel}</th>
-                <th className="w-[16%] whitespace-nowrap px-2 pb-3">% SUPPLY</th>
-                <th className="w-[28%] whitespace-nowrap px-2 pb-3 text-right">BAR</th>
+              <tr className={tableHeaderClass}>
+                <th className={`w-[8%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>#</th>
+                <th className={`w-[28%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>WALLET</th>
+                <th className={`w-[20%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{tokenColumnLabel}</th>
+                <th className={`w-[16%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>% SUPPLY</th>
+                <th className={`w-[28%] whitespace-nowrap pb-3 text-right ${embedded ? 'px-4' : 'px-2'}`}>BAR</th>
               </tr>
             </thead>
             <tbody>
@@ -193,11 +201,11 @@ export function TokenHolders({
                     ? Math.min(100, (holder.supplyPercent / maxSupplyPercent) * 100)
                     : 0
                 return (
-                  <tr key={holder.id} className="hover:bg-secondary/50 transition-colors">
-                    <td className="whitespace-nowrap px-2 py-2.5 text-muted-foreground">
+                  <tr key={holder.id} className={tableRowClass}>
+                    <td className={`whitespace-nowrap text-muted-foreground ${cellPad}`}>
                       {holder.rank}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2.5">
+                    <td className={`whitespace-nowrap ${cellPad}`}>
                       <a
                         href={`${hyperEvm.blockExplorers.default.url}/address/${holder.address}`}
                         target="_blank"
@@ -210,15 +218,15 @@ export function TokenHolders({
                       </a>
                     </td>
                     <td
-                      className="max-w-0 truncate whitespace-nowrap px-2 py-2.5 text-foreground"
+                      className={`max-w-0 truncate whitespace-nowrap text-foreground ${cellPad}`}
                       title={String(holder.tokens)}
                     >
                       {holder.tokensLabel}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2.5 text-foreground">
+                    <td className={`whitespace-nowrap text-foreground ${cellPad}`}>
                       {formatSupplyPercent(holder.supplyPercent)}
                     </td>
-                    <td className="px-2 py-2.5">
+                    <td className={cellPad}>
                       <div className="ml-auto h-2 w-full max-w-[10rem] overflow-hidden rounded-full bg-muted">
                         <div
                           className="h-full rounded-full bg-primary transition-all"
@@ -235,7 +243,7 @@ export function TokenHolders({
       )}
 
       {!loading && !error && (
-        <div className="mt-4 border-t border-border pt-4">
+        <div className={`${embedded ? 'px-4' : ''} mt-4 border-t border-border/50 pt-4`}>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Total Holders</span>
             <span className="font-semibold text-foreground">{holderCount}</span>

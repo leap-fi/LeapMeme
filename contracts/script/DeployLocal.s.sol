@@ -10,6 +10,7 @@ import {MockBounceFactory} from "../src/mocks/MockBounceFactory.sol";
 import {MockGlobalStorage} from "../src/mocks/MockGlobalStorage.sol";
 import {LeapToken} from "../src/LeapToken.sol";
 import {LeapBonding} from "../src/LeapBonding.sol";
+import {LeapBondingPlayground} from "../src/playground/LeapBondingPlayground.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
@@ -63,9 +64,10 @@ contract DeployLocal is Script {
         factory = new MockBounceFactory(lts, msg.sender);
         globalStorage = new MockGlobalStorage(address(factory));
 
+        // 本地开发即低风险体验版：部署带「收尾赎回」的体验版 Bonding。
         LeapConfig.Params memory cfg = LeapConfig.playground();
         tokenImpl = new LeapToken();
-        bonding = new LeapBonding(
+        bonding = new LeapBondingPlayground(
             address(usdc),
             address(tokenImpl),
             address(globalStorage),

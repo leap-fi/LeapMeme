@@ -32,7 +32,6 @@ func Setup(engine *gin.Engine) {
 	market := engine.Group("/market")
 	registerMarketRoutes(market)
 	registerKlineRoutes(engine)
-	registerAccountRoutes(engine)
 }
 
 func registerSetupRoutes(api *gin.RouterGroup) {
@@ -49,6 +48,7 @@ func registerPublicRoutes(api *gin.RouterGroup) {
 }
 
 func registerMarketRoutes(market *gin.RouterGroup) {
+	market.GET("/markets", controller.ListAccountMarkets)
 	market.GET("/trade/latest", controller.ListLatestTrades)
 	market.GET("/token/trades", controller.ListTokenTrades)
 	market.GET("/token/tokens", controller.ListNewTokens)
@@ -71,8 +71,4 @@ func registerKlineRoutes(engine *gin.Engine) {
 	if eng := kline.Default(); eng != nil {
 		engine.GET("/ws/kline", kline.HandleWS(eng))
 	}
-}
-
-func registerAccountRoutes(engine *gin.Engine) {
-	engine.GET("/account/markets", controller.ListAccountMarkets)
 }

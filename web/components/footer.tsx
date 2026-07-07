@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { BookOpen, Send } from 'lucide-react'
-import { Logo } from '@/components/logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LanguageToggle } from '@/components/language-toggle'
 import { useI18n } from '@/lib/i18n/context'
@@ -27,7 +26,7 @@ export function Footer() {
     <footer className="border-t border-border bg-card/50 px-6 py-4">
       <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-3">
         <div className="flex items-center justify-center gap-4 sm:justify-start">
-          <Logo width={32} height={32} className="h-8 w-8" />
+          <LanguageToggle />
           <Link
             href="/docs"
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-primary"
@@ -40,7 +39,6 @@ export function Footer() {
         <p className="text-center text-xs text-muted-foreground">{t('footer.rights')}</p>
 
         <div className="flex items-center justify-center gap-3 sm:justify-end">
-          <LanguageToggle />
           <ThemeToggle />
           <a
             href="https://x.com/leapfun"

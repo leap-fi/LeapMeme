@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Copy, ExternalLink, LogOut, Check, Loader2, X, CheckCircle2, XCircle, ChevronRight } from 'lucide-react'
+import { Copy, ExternalLink, LogOut, Check, Loader2, X, CheckCircle2, XCircle, ChevronRight, Coins } from 'lucide-react'
 import { Header } from '@/components/header'
 import { PriceTicker } from '@/components/price-ticker'
 import { Footer } from '@/components/footer'
 import { TokenAvatar } from '@/components/token-avatar'
 import { useMarketsContextOptional } from '@/contexts/markets-context'
 import { buildMarketIconMap, resolveTradingAssetIcon } from '@/lib/trading-asset-icons'
+import { IS_PLAYGROUND } from '@/lib/protocol-profile'
 
 const RELAY_BRIDGE_USDC_URL = 'https://app.openocean.finance/swap/hyperevm/HYPE/USDC'
 const RELAY_BRIDGE_HYPEREVM_URL = `https://app.openocean.finance/swap/hyperevm/USDC/HYPE`
@@ -42,7 +43,16 @@ const profileSectionLabel =
 const profileTableHeadRow =
   'border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider'
 
-type TabType = 'balances' | 'rewards' | 'transfer' | 'wallet'
+type TabType = 'balances' | 'rewards' | 'transfer' | 'redeem' | 'wallet'
+
+/** 体验版收尾赎回：某 token 的链上状态。 */
+export type ProfileRedeemStatus = {
+  graduated: boolean
+  unwound: boolean
+  redeemable: boolean
+  isCreator: boolean
+  reason: string | null
+}
 
 function stopRowNavigation(e: React.SyntheticEvent) {
   e.preventDefault()
@@ -147,6 +157,15 @@ export type ProfilePageViewProps = {
   transferCreatorTxHash?: string | null
   onTransferCreatorRole?: (tokenId: string, newOwner: string) => void
   onDismissTransferCreatorTxModal?: () => void
+  redeemStatuses?: Record<string, ProfileRedeemStatus>
+  redeemStatusesLoading?: boolean
+  redeemingTokenId?: string | null
+  redeemTxStatus?: 'idle' | 'unwinding' | 'success' | 'error'
+  redeemTxMessage?: string | null
+  redeemTxHash?: string | null
+  redeemUsdcOut?: string | null
+  onRedeemLockedFunds?: (tokenId: string) => void
+  onDismissRedeemTxModal?: () => void
   walletUnavailable?: boolean
   needsReconnect?: boolean
   onConnect?: () => void
@@ -189,6 +208,15 @@ export function ProfilePageView({
   transferCreatorTxHash = null,
   onTransferCreatorRole,
   onDismissTransferCreatorTxModal,
+  redeemStatuses = {},
+  redeemStatusesLoading = false,
+  redeemingTokenId = null,
+  redeemTxStatus = 'idle',
+  redeemTxMessage = null,
+  redeemTxHash = null,
+  redeemUsdcOut = null,
+  onRedeemLockedFunds,
+  onDismissRedeemTxModal,
   walletUnavailable = false,
   needsReconnect = false,
   onConnect,
@@ -208,6 +236,8 @@ export function ProfilePageView({
     { id: 'balances', label: 'Balances' },
     { id: 'rewards', label: 'Creator Rewards' },
     { id: 'transfer', label: 'Transfer Ownership' },
+    // 体验版专属：拆掉毕业锁定 LP、取回 USDC。正式版不显示。
+    ...(IS_PLAYGROUND ? [{ id: 'redeem' as TabType, label: 'Redeem (Playground)' }] : []),
     { id: 'wallet', label: 'Manage Wallet' },
   ]
 
@@ -371,6 +401,23 @@ export function ProfilePageView({
             txHash={transferCreatorTxHash}
             onTransfer={onTransferCreatorRole}
             onDismissTxModal={onDismissTransferCreatorTxModal}
+          />
+        )}
+        {activeTab === 'redeem' && IS_PLAYGROUND && (
+          <PlaygroundRedeemTab
+            authenticated={authenticated}
+            createdTokens={createdTokens}
+            loading={createdTokensLoading}
+            error={createdTokensError}
+            statuses={redeemStatuses}
+            statusesLoading={redeemStatusesLoading}
+            redeemingTokenId={redeemingTokenId}
+            txStatus={redeemTxStatus}
+            txMessage={redeemTxMessage}
+            txHash={redeemTxHash}
+            usdcOut={redeemUsdcOut}
+            onRedeem={onRedeemLockedFunds}
+            onDismissTxModal={onDismissRedeemTxModal}
           />
         )}
       </main>
@@ -924,6 +971,234 @@ function CreatorRewardsTab({
             {txStatus === 'success' && claimTxHash && (
               <a
                 href={`https://hyperevmscan.io/tx/${claimTxHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                View Transaction Details
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+
+            <button
+              type="button"
+              onClick={onDismissTxModal}
+              disabled={isPending}
+              className="mt-4 w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPending ? 'Processing...' : 'Close'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PlaygroundRedeemTab({
+  authenticated,
+  createdTokens,
+  loading,
+  error,
+  statuses,
+  statusesLoading,
+  redeemingTokenId,
+  txStatus,
+  txMessage,
+  txHash,
+  usdcOut,
+  onRedeem,
+  onDismissTxModal,
+}: {
+  authenticated: boolean
+  createdTokens: ProfileCreatedTokenItem[]
+  loading: boolean
+  error: string | null
+  statuses: Record<string, ProfileRedeemStatus>
+  statusesLoading: boolean
+  redeemingTokenId: string | null
+  txStatus: 'idle' | 'unwinding' | 'success' | 'error'
+  txMessage: string | null
+  txHash: string | null
+  usdcOut: string | null
+  onRedeem?: (tokenId: string) => void
+  onDismissTxModal?: () => void
+}) {
+  const showTxModal = txStatus !== 'idle'
+  const isPending = txStatus === 'unwinding'
+  const showNoTokensEmptyState =
+    authenticated && !loading && !error && createdTokens.length === 0
+
+  if (!authenticated) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        Connect wallet to view redeemable tokens.
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        Loading your tokens...
+      </div>
+    )
+  }
+
+  if (error) {
+    return <div className="py-12 text-center text-sm text-destructive">{error}</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-2">Redeem locked funds</h2>
+        <p className="text-sm text-muted-foreground max-w-2xl">
+          Playground only. After a token graduates, its liquidity is locked in the pool. Once every
+          meme token is sold back (nothing left circulating), the creator can unwind the pool and
+          reclaim the locked USDC — so a solo run costs you nothing but gas.
+        </p>
+      </div>
+
+      <div className="rounded-lg border-l-2 border-amber-500 bg-amber-500/5 p-4">
+        <p className={`${profileSectionLabel} text-amber-500 mb-1`}>How to redeem</p>
+        <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
+          <li>Trade the token to graduation.</li>
+          <li>Sell all your meme tokens back to the pool (nothing circulating).</li>
+          <li>Redeem here to unwind the locked liquidity into USDC.</li>
+        </ol>
+      </div>
+
+      {showNoTokensEmptyState ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-sm font-semibold text-foreground mb-4">No tokens to redeem</p>
+          <p className="text-sm text-muted-foreground max-w-lg">
+            Tokens you launched will appear here once they graduate.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {createdTokens.map((token) => {
+            const status = statuses[token.id]
+            const isThisRedeeming = redeemingTokenId === token.id
+            const canRedeem = !!status?.redeemable && !isThisRedeeming
+            const statusLabel = status?.unwound
+              ? 'Redeemed'
+              : status?.redeemable
+                ? 'Ready to redeem'
+                : statusesLoading && !status
+                  ? 'Checking...'
+                  : (status?.reason ?? 'Not ready')
+
+            return (
+              <div
+                key={token.id}
+                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <TokenAvatar
+                    image={token.image}
+                    symbol={token.symbol}
+                    className="w-10 h-10 shrink-0 rounded-lg bg-card border border-border"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-foreground truncate">{token.symbol}</p>
+                    <p className="text-xs text-muted-foreground truncate">{token.name}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span
+                    className={`text-xs font-medium ${status?.unwound
+                        ? 'text-muted-foreground'
+                        : status?.redeemable
+                          ? 'text-primary'
+                          : 'text-muted-foreground'
+                      }`}
+                  >
+                    {statusLabel}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!canRedeem}
+                    onClick={() => onRedeem?.(token.id)}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isThisRedeeming ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Coins className="h-4 w-4" />
+                    )}
+                    {status?.unwound ? 'Redeemed' : isThisRedeeming ? 'Redeeming…' : 'Redeem'}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {showTxModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Redeem Locked Funds</p>
+                <h3 className="mt-1 text-lg font-semibold text-foreground">
+                  {isPending
+                    ? 'Transaction In Progress'
+                    : txStatus === 'success'
+                      ? 'Transaction Successful'
+                      : 'Transaction Failed'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={onDismissTxModal}
+                disabled={isPending}
+                className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-border bg-secondary/50 p-4 text-sm">
+              {isPending && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-foreground">
+                    <div className="relative flex h-8 w-8 items-center justify-center">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/30" />
+                      <span className="absolute inline-flex h-6 w-6 rounded-full bg-primary/20" />
+                      <Loader2 className="relative h-4 w-4 animate-spin text-primary" />
+                    </div>
+                    <p>Confirm the redeem transaction in your wallet...</p>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
+                  </div>
+                </div>
+              )}
+              {txStatus === 'error' && (
+                <div className="flex items-start gap-3">
+                  <XCircle className="mt-0.5 h-5 w-5 animate-pulse text-destructive" />
+                  <p className="text-destructive">{txMessage ?? 'Redeem failed.'}</p>
+                </div>
+              )}
+              {txStatus === 'success' && (
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 animate-bounce text-primary" />
+                  <p className="text-primary">
+                    {usdcOut
+                      ? `Redeemed ${usdcOut} USDC from locked liquidity.`
+                      : 'Locked liquidity unwound on-chain.'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {txStatus === 'success' && txHash && (
+              <a
+                href={`https://hyperevmscan.io/tx/${txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

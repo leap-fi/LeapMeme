@@ -1,19 +1,29 @@
 package service
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
 	"github.com/leap/backend/common"
 	"github.com/leap/backend/internal/dto"
+	"github.com/leap/backend/internal/indexer"
 	"github.com/leap/backend/internal/model"
 	"github.com/leap/backend/pkg/apperror"
 )
 
 func GetTokenDetail(address string) (*dto.TokenDetailResponse, error) {
+	return GetTokenDetailWithContext(context.Background(), address)
+}
+
+func GetTokenDetailWithContext(ctx context.Context, address string) (*dto.TokenDetailResponse, error) {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return nil, apperror.Validation("address is required")
+	}
+
+	if err := indexer.SyncTokenBondingCurve(ctx, address); err != nil {
+		common.SysError("sync bonding curve: " + err.Error())
 	}
 
 	token, err := model.GetTokenByAddress(address)

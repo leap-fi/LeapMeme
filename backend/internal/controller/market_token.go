@@ -40,7 +40,7 @@ func GetTokenDetail(c *gin.Context) {
 		return
 	}
 
-	detail, err := service.GetTokenDetail(address)
+	detail, err := service.GetTokenDetailWithContext(c.Request.Context(), address)
 	if err != nil {
 		failMarketError(c, err)
 		return

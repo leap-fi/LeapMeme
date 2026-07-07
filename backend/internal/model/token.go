@@ -288,6 +288,10 @@ func formatProgress(v float64) string {
 	return fmt.Sprintf("%.4f", v)
 }
 
+func CalcMarketCap(priceStr, supplyStr string) (string, bool) {
+	return calcMarketCap(priceStr, supplyStr)
+}
+
 func calcMarketCap(priceStr, supplyStr string) (string, bool) {
 	price := ParseDecimalString(priceStr)
 	supply := ParseDecimalString(supplyStr)

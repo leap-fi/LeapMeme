@@ -7,6 +7,7 @@ import {console2} from "forge-std/console2.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {LeapToken} from "../src/LeapToken.sol";
 import {LeapBonding} from "../src/LeapBonding.sol";
+import {LeapBondingPlayground} from "../src/playground/LeapBondingPlayground.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
@@ -94,12 +95,20 @@ contract DeployHyperEVM is Script {
 
     function _deploy() internal {
         // PROTOCOL_PROFILE=playground（默认，低风险体验版）| production
-        LeapConfig.Params memory cfg = _profile();
+        bool isPlayground = _isPlayground();
+        LeapConfig.Params memory cfg = isPlayground ? LeapConfig.playground() : LeapConfig.production();
 
         tokenImpl = new LeapToken();
-        bonding = new LeapBonding(
-            usdc, address(tokenImpl), bounceGlobalStorage, cfg.virtualUsdc, cfg.virtualToken, cfg.graduationUsdc
-        );
+        // 体验版部署带「收尾赎回」的 LeapBondingPlayground；正式版用 LeapBonding，逻辑不受影响。
+        if (isPlayground) {
+            bonding = new LeapBondingPlayground(
+                usdc, address(tokenImpl), bounceGlobalStorage, cfg.virtualUsdc, cfg.virtualToken, cfg.graduationUsdc
+            );
+        } else {
+            bonding = new LeapBonding(
+                usdc, address(tokenImpl), bounceGlobalStorage, cfg.virtualUsdc, cfg.virtualToken, cfg.graduationUsdc
+            );
+        }
         rewards = new LeapCreatorRewards(usdc);
         router = new LeapRouter(address(bonding));
         zap = new LeapZap(
@@ -111,14 +120,14 @@ contract DeployHyperEVM is Script {
         rewards.setZap(address(zap));
     }
 
-    function _profile() internal view returns (LeapConfig.Params memory) {
+    function _isPlayground() internal view returns (bool) {
         string memory name = vm.envOr("PROTOCOL_PROFILE", string("playground"));
         if (keccak256(bytes(name)) == keccak256(bytes("production"))) {
-            console2.log("Protocol profile: production");
-            return LeapConfig.production();
+            console2.log("Protocol profile: production (LeapBonding)");
+            return false;
         }
-        console2.log("Protocol profile: playground");
-        return LeapConfig.playground();
+        console2.log("Protocol profile: playground (LeapBondingPlayground)");
+        return true;
     }
 
     function _writeJson() internal {

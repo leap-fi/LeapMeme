@@ -13,6 +13,8 @@ type KlineChartProps = {
   address: string
   header?: ReactNode
   footer?: ReactNode
+  /** Omit solid card shell (e.g. coin detail page over fluid background). */
+  embedded?: boolean
 }
 
 function ShareLinkButton() {
@@ -55,7 +57,7 @@ function ShareLinkButton() {
   )
 }
 
-export function KlineChart({ address, header, footer }: KlineChartProps) {
+export function KlineChart({ address, header, footer, embedded }: KlineChartProps) {
   const [period, setPeriod] = useState<KlinePeriod>('1m')
   const { candles, loading } = useKlineFeed(address, period)
 
@@ -63,7 +65,7 @@ export function KlineChart({ address, header, footer }: KlineChartProps) {
   useLightweightChart(chartRef, candles, period)
 
   return (
-    <div className="bg-card rounded-xl p-6">
+    <div className={cn(embedded ? 'space-y-4' : 'bg-card rounded-xl p-6')}>
       {header ? <div className="mb-4">{header}</div> : null}
 
       <div className="mb-4 flex items-center justify-between gap-2">
@@ -96,7 +98,9 @@ export function KlineChart({ address, header, footer }: KlineChartProps) {
       </div>
 
       {footer ? (
-        <div className="mt-3 border-t border-border pt-3">{footer}</div>
+        <div className={cn('mt-3 border-t pt-3', embedded ? 'border-border/50' : 'border-border')}>
+          {footer}
+        </div>
       ) : null}
     </div>
   )

@@ -11,6 +11,7 @@ import {MockBounceFactory} from "../src/mocks/MockBounceFactory.sol";
 import {MockGlobalStorage} from "../src/mocks/MockGlobalStorage.sol";
 import {LeapToken} from "../src/LeapToken.sol";
 import {LeapBonding} from "../src/LeapBonding.sol";
+import {LeapBondingPlayground} from "../src/playground/LeapBondingPlayground.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
@@ -25,7 +26,7 @@ contract LeapPlaygroundTest is Test {
     MockLT internal btcLt;
     MockGlobalStorage internal globalStorage;
     MockBounceFactory internal factory;
-    LeapBonding internal bonding;
+    LeapBondingPlayground internal bonding;
     LeapRouter internal router;
     LeapZap internal zap;
     LeapCreatorRewards internal rewards;
@@ -46,7 +47,7 @@ contract LeapPlaygroundTest is Test {
 
         LeapConfig.Params memory cfg = LeapConfig.playground();
         tokenImpl = new LeapToken();
-        bonding = new LeapBonding(
+        bonding = new LeapBondingPlayground(
             address(usdc),
             address(tokenImpl),
             address(globalStorage),
@@ -182,5 +183,85 @@ contract LeapPlaygroundTest is Test {
 
         assertTrue(bonding.isGraduated(token), "should graduate");
         assertTrue(bonding.pairOf(token) != address(0), "pair created");
+    }
+
+    // --- 体验版收尾赎回（playgroundUnwind）---
+
+    /// @dev 把 token 买到毕业并返回地址（buyer 持有全部曲线阶段的 meme）。
+    function _graduate(address buyer) internal returns (address token) {
+        token = _createZeroSeed();
+        for (uint256 i = 0; i < 20; i++) {
+            if (bonding.isGraduated(token)) break;
+            vm.startPrank(buyer);
+            usdc.approve(address(zap), ONE_USDC);
+            zap.buy(token, ONE_USDC, 0, address(0));
+            vm.stopPrank();
+        }
+        require(bonding.isGraduated(token), "not graduated in helper");
+    }
+
+    function test_Unwind_revertsWhenMemeStillCirculating() public {
+        address token = _graduate(trader);
+        // trader 仍持有大量 meme（池外流通），不满足赎回条件。
+        assertFalse(bonding.canUnwind(token), "should not be unwindable");
+
+        vm.prank(creator);
+        vm.expectRevert(bytes("still circulating"));
+        bonding.playgroundUnwind(token);
+    }
+
+    function test_Unwind_revertsForNonCreator() public {
+        address token = _graduate(trader);
+        vm.prank(trader);
+        vm.expectRevert(bytes("creator"));
+        bonding.playgroundUnwind(token);
+    }
+
+    function test_Unwind_revertsBeforeGraduation() public {
+        address token = _createZeroSeed();
+        vm.prank(creator);
+        vm.expectRevert(bytes("not graduated"));
+        bonding.playgroundUnwind(token);
+    }
+
+    /// @dev solo 场景：creator 自己一路买到毕业、清空池外 meme 后收尾赎回，取回锁定 LP 的 USDC。
+    function test_Unwind_reclaimsLockedUsdcForCreator() public {
+        address token = _graduate(creator);
+        address pair = bonding.pairOf(token);
+
+        // 清空池外流通：把 creator 手里的 meme 全部移出流通（模拟卖光/无外部持有）。
+        uint256 held = IERC20(token).balanceOf(creator);
+        vm.prank(creator);
+        IERC20(token).transfer(pair, held);
+
+        assertLe(bonding.circulatingMeme(token), bonding.UNWIND_DUST(), "circulating cleared");
+        assertTrue(bonding.canUnwind(token), "should be unwindable");
+
+        uint256 usdcBefore = usdc.balanceOf(creator);
+
+        vm.prank(creator);
+        uint256 usdcOut = bonding.playgroundUnwind(token);
+
+        assertGt(usdcOut, 0, "should reclaim usdc");
+        assertEq(usdc.balanceOf(creator) - usdcBefore, usdcOut, "usdc paid to creator");
+        assertEq(IERC20(pair).balanceOf(address(bonding)), 0, "lp burned");
+        assertTrue(bonding.unwound(token), "marked unwound");
+        assertFalse(bonding.canUnwind(token), "not unwindable after");
+    }
+
+    function test_Unwind_revertsOnDoubleUnwind() public {
+        address token = _graduate(creator);
+        address pair = bonding.pairOf(token);
+
+        uint256 held = IERC20(token).balanceOf(creator);
+        vm.prank(creator);
+        IERC20(token).transfer(pair, held);
+
+        vm.prank(creator);
+        bonding.playgroundUnwind(token);
+
+        vm.prank(creator);
+        vm.expectRevert(bytes("unwound"));
+        bonding.playgroundUnwind(token);
     }
 }

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMarketsContext } from '@/contexts/markets-context'
 import {
+  findLeverageToken,
   formatLeverageLabel,
   getLeverageTiers,
   parseLeverageMultiplier,
@@ -22,7 +23,7 @@ import { useLaunchToken, formatLtPairNotFoundMessage } from '@/hooks/use-launch-
 import { MAX_TRADE_USDC, MIN_SEED_USDC } from '@/lib/contracts/config'
 import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
 import { BONDING_CURVE_GRADUATION_TARGET_USD } from '@/lib/apis/meme-server/format'
-import { fetchAwsUploadTokenApi } from '@/lib/apis/account/aws-token.api'
+import { fetchAwsUploadTokenApi } from '@/lib/apis/meme-server/aws-token.api'
 
 const seedBuyPresets = PROTOCOL_PROFILE.seedPresets.map((value) => ({
   label: value === 0 ? 'NONE' : `$${value}`,
@@ -75,6 +76,18 @@ export default function CreatePage() {
     [selectedMarket, direction],
   )
 
+  const selectedLtToken = useMemo(
+    () =>
+      findLeverageToken(
+        selectedMarket,
+        direction,
+        parseLeverageMultiplier(leverage),
+      ),
+    [selectedMarket, direction, leverage],
+  )
+
+  const accountLtAddress = selectedLtToken?.address as `0x${string}` | undefined
+
   useEffect(() => {
     if (marketsLoading || markets.length === 0) return
     if (!markets.some((m) => m.symbol === selectedAsset)) {
@@ -92,8 +105,8 @@ export default function CreatePage() {
 
   useEffect(() => {
     if (!selectedAsset) return
-    void resolveLt(selectedAsset, leverage, direction)
-  }, [selectedAsset, leverage, direction, resolveLt])
+    void resolveLt(selectedAsset, leverage, direction, accountLtAddress ?? null)
+  }, [selectedAsset, leverage, direction, accountLtAddress, resolveLt])
 
   const handleLaunch = useCallback(async () => {
     resetTx()

@@ -1,5 +1,9 @@
-import { accountFetch } from '@/lib/account/api'
+import { getMemeServerBaseUrl } from '@/lib/apis/meme-server/config'
 import type { AccountMarket } from '@/lib/account/types'
+
+function isSuccessCode(code: number | undefined): boolean {
+  return code === 0
+}
 
 function toFiniteNumber(value: unknown): number | null {
   if (value == null || value === '') return null
@@ -23,8 +27,28 @@ function normalizeAccountMarket(raw: AccountMarket): AccountMarket {
   }
 }
 
-/** GET /account/markets */
+/** GET /market/markets */
 export async function fetchAccountMarketsApi(): Promise<AccountMarket[]> {
-  const data = await accountFetch<AccountMarket[]>('/account/markets')
-  return Array.isArray(data) ? data.map(normalizeAccountMarket) : []
+  const url = `${getMemeServerBaseUrl()}/market/markets`
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error(`meme-server markets HTTP ${response.status}`)
+  }
+
+  const payload = (await response.json()) as {
+    code?: number
+    msg?: string
+    data?: AccountMarket[]
+  }
+
+  if (!isSuccessCode(payload?.code) || !Array.isArray(payload.data)) {
+    throw new Error(payload?.msg || 'Invalid markets response')
+  }
+
+  return payload.data.map(normalizeAccountMarket)
 }

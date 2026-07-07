@@ -1,4 +1,4 @@
-import { fetchAccountMarketsApi } from '@/lib/apis/account/markets.api'
+import { fetchAccountMarketsApi } from '@/lib/apis/meme-server/markets.api'
 import type { AccountMarket } from '@/lib/account/types'
 
 export async function fetchAccountMarkets(): Promise<AccountMarket[]> {

@@ -1,4 +1,4 @@
-const DEFAULT_MEME_SERVER_BASE_URL = 'https://pre.latix.ai'
+const DEFAULT_MEME_SERVER_BASE_URL = 'https://leap.cc'
 
 export function getMemeServerBaseUrl(): string {
   const raw =

@@ -43,6 +43,28 @@ func decodeLaunchParamsFromTx(zapABI abi.ABI, tx *types.Transaction) (*launchPar
 	return unpackLaunchParams(values[0])
 }
 
+func decodeSeedUsdcFromTx(zapABI abi.ABI, tx *types.Transaction) (*big.Int, error) {
+	if tx == nil || len(tx.Data()) < 4 {
+		return nil, nil
+	}
+	method, err := zapABI.MethodById(tx.Data()[:4])
+	if err != nil {
+		return nil, nil
+	}
+	if method.Name != "createToken" && method.Name != "createTokenWithPermit" {
+		return nil, nil
+	}
+	values, err := method.Inputs.Unpack(tx.Data()[4:])
+	if err != nil || len(values) < 2 {
+		return nil, err
+	}
+	seed, ok := values[1].(*big.Int)
+	if !ok || seed == nil {
+		return nil, nil
+	}
+	return seed, nil
+}
+
 func unpackLaunchParams(raw any) (*launchParamsDecoded, error) {
 	v := reflect.ValueOf(raw)
 	if v.Kind() == reflect.Pointer {
@@ -135,6 +157,8 @@ func (s *Scanner) enrichToken(ctx context.Context, token *model.Token, launch *l
 	}
 
 	s.syncTokenGraduation(ctx, token, tokenAddr)
+	s.syncBondingCurveFromChain(ctx, token, tokenAddr)
+	s.refreshTokenMarketFields(ctx, token, tokenAddr)
 
 	return nil
 }
@@ -219,22 +243,33 @@ func (s *Scanner) BackfillMissingTokens(ctx context.Context) error {
 }
 
 func (s *Scanner) readTotalSupply(ctx context.Context, token ethcommon.Address) (string, error) {
-	data, err := s.erc20ABI.Pack("totalSupply")
+	raw, err := s.readRawTotalSupply(ctx, token)
 	if err != nil {
 		return "", err
+	}
+	if raw == nil {
+		return "", nil
+	}
+	return formatUnits(raw, 18), nil
+}
+
+func (s *Scanner) readRawTotalSupply(ctx context.Context, token ethcommon.Address) (*big.Int, error) {
+	data, err := s.erc20ABI.Pack("totalSupply")
+	if err != nil {
+		return nil, err
 	}
 	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &token, Data: data}, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	values, err := s.erc20ABI.Unpack("totalSupply", out)
 	if err != nil || len(values) == 0 {
-		return "", err
+		return nil, err
 	}
 	if v, ok := values[0].(*big.Int); ok {
-		return formatUnits(v, 18), nil
+		return v, nil
 	}
-	return "", nil
+	return nil, nil
 }
 
 type ltMeta struct {
@@ -308,6 +343,73 @@ func (s *Scanner) readLtMeta(ctx context.Context, lt ethcommon.Address) (ltMeta,
 	return ltMeta{TargetAsset: asset, TargetLeverage: lev, IsLong: isLong}, nil
 }
 
+type ltMarketState struct {
+	ltMeta
+	MintPaused   bool
+	ExchangeRate string
+	TotalAssets  string
+}
+
+func (s *Scanner) readLtMarketState(ctx context.Context, lt ethcommon.Address) (ltMarketState, error) {
+	meta, err := s.readLtMeta(ctx, lt)
+	if err != nil {
+		return ltMarketState{}, err
+	}
+	exchangeRate, _ := s.readLtBigIntString(ctx, lt, "exchangeRate")
+	totalAssets, _ := s.readLtBigIntString(ctx, lt, "totalAssets")
+	mintPaused, _ := s.readLtBool(ctx, lt, "mintPaused")
+	return ltMarketState{
+		ltMeta:       meta,
+		MintPaused:   mintPaused,
+		ExchangeRate: exchangeRate,
+		TotalAssets:  totalAssets,
+	}, nil
+}
+
+func (s *Scanner) readLtBigIntString(ctx context.Context, lt ethcommon.Address, method string) (string, error) {
+	ltABI, err := parseBounceLtABI()
+	if err != nil {
+		return "0", err
+	}
+	data, err := ltABI.Pack(method)
+	if err != nil {
+		return "0", err
+	}
+	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &lt, Data: data}, nil)
+	if err != nil {
+		return "0", err
+	}
+	values, err := ltABI.Unpack(method, out)
+	if err != nil || len(values) == 0 {
+		return "0", err
+	}
+	if v, ok := values[0].(*big.Int); ok {
+		return v.String(), nil
+	}
+	return "0", nil
+}
+
+func (s *Scanner) readLtBool(ctx context.Context, lt ethcommon.Address, method string) (bool, error) {
+	ltABI, err := parseBounceLtABI()
+	if err != nil {
+		return false, err
+	}
+	data, err := ltABI.Pack(method)
+	if err != nil {
+		return false, err
+	}
+	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &lt, Data: data}, nil)
+	if err != nil {
+		return false, err
+	}
+	values, err := ltABI.Unpack(method, out)
+	if err != nil || len(values) == 0 {
+		return false, err
+	}
+	v, _ := values[0].(bool)
+	return v, nil
+}
+
 func (s *Scanner) readIsGraduated(ctx context.Context, token ethcommon.Address) (bool, error) {
 	if s.cfg.BondingAddress == "" {
 		return false, nil
@@ -331,4 +433,58 @@ func (s *Scanner) readIsGraduated(ctx context.Context, token ethcommon.Address) 
 	}
 	v, _ := values[0].(bool)
 	return v, nil
+}
+
+func (s *Scanner) readRaisedUsdc(ctx context.Context, token ethcommon.Address) (*big.Int, error) {
+	if s.cfg.BondingAddress == "" {
+		return nil, nil
+	}
+	bondingABI, err := parseBondingABI()
+	if err != nil {
+		return nil, err
+	}
+	bonding := ethcommon.HexToAddress(s.cfg.BondingAddress)
+	data, err := bondingABI.Pack("raisedUsdc", token)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &bonding, Data: data}, nil)
+	if err != nil {
+		return nil, err
+	}
+	values, err := bondingABI.Unpack("raisedUsdc", out)
+	if err != nil || len(values) == 0 {
+		return nil, err
+	}
+	raised, ok := values[0].(*big.Int)
+	if !ok {
+		return nil, nil
+	}
+	return raised, nil
+}
+
+func (s *Scanner) syncBondingCurveFromChain(ctx context.Context, token *model.Token, tokenAddr ethcommon.Address) {
+	if token == nil {
+		return
+	}
+	switch strings.ToUpper(strings.TrimSpace(token.Status)) {
+	case "GRADUATED", "COMPLETED", "MIGRATED":
+		token.BondingCurveProgress = "100"
+		return
+	}
+	raised, err := s.readRaisedUsdc(ctx, tokenAddr)
+	if err != nil || raised == nil {
+		return
+	}
+	volumeStr := formatTokenAmount(raised, 6)
+	volume := model.ParseDecimalString(volumeStr)
+	token.BondingCurveVolume = volumeStr
+	progress := volume / float64(common.BondingCurveGraduationTargetUSD) * 100
+	if progress > 100 {
+		progress = 100
+	}
+	if progress < 0 {
+		progress = 0
+	}
+	token.BondingCurveProgress = fmt.Sprintf("%.4f", progress)
 }

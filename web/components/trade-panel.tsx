@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Settings, X, ExternalLink, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import type { Token } from '@/lib/mock-data'
@@ -11,6 +12,7 @@ import { CONTRACTS } from '@/lib/contracts/config'
 import type { TradeContracts } from '@/lib/contracts/trade-quote'
 import { MAX_TRADE_USDC, MIN_BUY_USDC, MIN_SELL_USDC } from '@/lib/contracts/config'
 import { hyperEvm } from '@/lib/contracts/chain'
+import { cn } from '@/lib/utils'
 
 interface TradePanelProps {
   token: Token
@@ -21,6 +23,10 @@ interface TradePanelProps {
   protocolAddressesReady?: boolean
   /** Omit outer card shell (e.g. inside mobile trade drawer). */
   embedded?: boolean
+  /** Semi-transparent shell for pages with fluid background. */
+  glass?: boolean
+  /** Called once per successful trade tx. */
+  onTradeSuccess?: () => void
 }
 
 const TX_MODAL_AUTO_CLOSE_SEC = 10
@@ -62,13 +68,20 @@ export function TradePanel({
   protocolAddressOverrides,
   protocolAddressesReady = true,
   embedded,
+  glass,
+  onTradeSuccess,
 }: TradePanelProps) {
   const [mode, setMode] = useState<'buy' | 'sell'>('buy')
   const [amount, setAmount] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [slippage, setSlippage] = useState('10')
   const [showTxModal, setShowTxModal] = useState(false)
+  const [portalReady, setPortalReady] = useState(false)
   const [closeCountdown, setCloseCountdown] = useState(TX_MODAL_AUTO_CLOSE_SEC)
+
+  useEffect(() => {
+    setPortalReady(true)
+  }, [])
 
   const tokenAddress = resolveTokenAddress(token, contractAddressOverride)
   const slippageNum = Number.parseFloat(slippage) || 10
@@ -226,6 +239,15 @@ export function TradePanel({
     resetTx()
   }
 
+  const lastSuccessHashRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (txState.status !== 'success') return
+    const hash = txState.hash
+    if (!hash || lastSuccessHashRef.current === hash) return
+    lastSuccessHashRef.current = hash
+    onTradeSuccess?.()
+  }, [txState, onTradeSuccess])
+
   useEffect(() => {
     if (txState.status !== 'success' || !showTxModal) {
       setCloseCountdown(TX_MODAL_AUTO_CLOSE_SEC)
@@ -251,7 +273,16 @@ export function TradePanel({
   }, [txState.status, showTxModal, resetTx])
 
   return (
-    <div className={embedded ? 'relative' : 'bg-card rounded-xl p-6 relative'}>
+    <>
+    <div
+      className={cn(
+        'relative',
+        !embedded &&
+          (glass
+            ? 'rounded-xl border border-border/30 bg-background/20 p-6 backdrop-blur-md supports-[backdrop-filter]:bg-background/15'
+            : 'rounded-xl bg-card p-6'),
+      )}
+    >
       <div className="flex gap-2 mb-6">
         <button
           type="button"
@@ -482,9 +513,13 @@ export function TradePanel({
         </Link>{' '}
         on HyperEVM
       </p>
+    </div>
 
-      {showTxModal && txState.status !== 'idle' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      {portalReady &&
+        showTxModal &&
+        txState.status !== 'idle' &&
+        createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-3 flex items-start justify-between gap-4">
               <div>
@@ -647,8 +682,9 @@ export function TradePanel({
                   : 'Close'}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   )
 }

@@ -65,7 +65,7 @@ export function useMarketLiveData() {
     [markets, quotesBySymbol],
   )
 
-  /** Show list as soon as /account/markets has data; never wait for WS */
+  /** Show list as soon as /market/markets has data; never wait for WS */
   const loading = marketsLoading && markets.length === 0
 
   return { items, markets, quotesBySymbol, loading, error, refetch }

@@ -174,6 +174,68 @@ func ApplyPriceContinuity(candles []Candle) []Candle {
 
 const maxGapFillBuckets = 50000
 
+func chartPaddingBars(period string) int64 {
+	switch period {
+	case Period15m:
+		return 48
+	case Period1h:
+		return 48
+	case Period1d:
+		return 14
+	default:
+		return 120 // 1m: 2h padding before first / toward tail
+	}
+}
+
+// clampChartFillRange limits synthetic gap-fill to a window around actual trades.
+// Without this, filling from a distant history start hits maxGapFillBuckets and
+// leaves a multi-month hole before the first real candle on the chart.
+func clampChartFillRange(candles []Candle, period string, startSec, endSec int64) (int64, int64, error) {
+	if len(candles) == 0 {
+		return startSec, endSec, nil
+	}
+	periodSec, err := PeriodDurationSec(period)
+	if err != nil {
+		return 0, 0, err
+	}
+	padding := chartPaddingBars(period) * periodSec
+
+	first := candles[0]
+	last := candles[len(candles)-1]
+
+	rangeStart := startSec
+	if rangeStart > 0 {
+		rangeStart, err = BucketBeginSec(rangeStart*1000, period)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	earliest := first.BeginTime - padding
+	if earliest < 0 {
+		earliest = 0
+	}
+	if rangeStart < earliest {
+		rangeStart = earliest
+	}
+
+	rangeEnd := endSec
+	if rangeEnd <= 0 {
+		rangeEnd = time.Now().Unix()
+	}
+	rangeEnd, err = BucketBeginSec(rangeEnd*1000, period)
+	if err != nil {
+		return 0, 0, err
+	}
+	latest := last.BeginTime + padding*2
+	if rangeEnd > latest {
+		rangeEnd = latest
+	}
+	if rangeEnd < last.BeginTime {
+		rangeEnd = last.BeginTime
+	}
+	return rangeStart, rangeEnd, nil
+}
+
 // FillTimeGaps inserts synthetic flat candles (volume=0) for missing periods so the
 // time axis is continuous. Raw trade candles are unchanged; gaps use previous close.
 func FillTimeGaps(candles []Candle, period string, startSec, endSec int64) ([]Candle, error) {
@@ -188,18 +250,7 @@ func FillTimeGaps(candles []Candle, period string, startSec, endSec int64) ([]Ca
 	sorted := append([]Candle(nil), candles...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].BeginTime < sorted[j].BeginTime })
 
-	rangeStart := int64(0)
-	if startSec > 0 {
-		rangeStart, err = BucketBeginSec(startSec*1000, period)
-		if err != nil {
-			return nil, err
-		}
-	}
-	rangeEnd := endSec
-	if rangeEnd <= 0 {
-		rangeEnd = time.Now().Unix()
-	}
-	rangeEnd, err = BucketBeginSec(rangeEnd*1000, period)
+	rangeStart, rangeEnd, err := clampChartFillRange(sorted, period, startSec, endSec)
 	if err != nil {
 		return nil, err
 	}

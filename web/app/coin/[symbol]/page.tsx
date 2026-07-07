@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { tokens } from '@/lib/mock-data'
 import {
@@ -34,6 +34,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Footer } from '@/components/footer'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
@@ -106,28 +107,31 @@ export default function CoinPage() {
 
   const fetchAddress = addressOverride?.trim() || tokenFromList?.contractAddress?.trim() || ''
   const [detail, setDetail] = useState<TokenDetailDto | null>(null)
+  const [tradeRefreshKey, setTradeRefreshKey] = useState(0)
   const isLgUp = useIsLgUp()
   const [tradeDrawerOpen, setTradeDrawerOpen] = useState(false)
 
-  useEffect(() => {
-    let disposed = false
-    async function loadDetail() {
-      if (!fetchAddress) {
-        setDetail(null)
-        return
-      }
-      try {
-        const data = await getTokenDetail(fetchAddress)
-        if (!disposed) setDetail(data)
-      } catch {
-        if (!disposed) setDetail(null)
-      }
+  const loadDetail = useCallback(async () => {
+    if (!fetchAddress) {
+      setDetail(null)
+      return
     }
-    void loadDetail()
-    return () => {
-      disposed = true
+    try {
+      const data = await getTokenDetail(fetchAddress)
+      setDetail(data)
+    } catch {
+      setDetail(null)
     }
   }, [fetchAddress])
+
+  useEffect(() => {
+    void loadDetail()
+  }, [loadDetail])
+
+  const handleTradeSuccess = useCallback(() => {
+    setTradeRefreshKey((key) => key + 1)
+    void loadDetail()
+  }, [loadDetail])
 
   const resolvedToken = useMemo(() => {
     const underlying = detail?.market?.trim()
@@ -278,6 +282,7 @@ export default function CoinPage() {
     contractAddressOverride: addressOverride,
     protocolAddressOverrides,
     protocolAddressesReady,
+    onTradeSuccess: handleTradeSuccess,
   }
 
   return (
@@ -360,13 +365,19 @@ export default function CoinPage() {
             />
 
             {/* Token detail tabs */}
-            <div className="bg-card rounded-xl p-4 sm:p-6">
+            <div className="space-y-4">
               <Tabs defaultValue="trades" className="gap-4">
-                <TabsList className="grid h-auto w-full grid-cols-2 p-1">
-                  <TabsTrigger value="trades" className="px-1 py-2 text-xs sm:px-2 sm:text-sm">
+                <TabsList className="grid h-10 w-full grid-cols-2 gap-1 rounded-[4px] border border-border/30 bg-muted/20 p-1 backdrop-blur-sm">
+                  <TabsTrigger
+                    value="trades"
+                    className="flex h-full min-h-0 items-center justify-center self-stretch rounded-[4px] border-0 px-3 py-0 text-xs leading-none font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground/80 data-[state=active]:bg-foreground/5 data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-white/5 dark:data-[state=active]:text-white sm:text-sm"
+                  >
                     Recent Trades
                   </TabsTrigger>
-                  <TabsTrigger value="holders" className="px-1 py-2 text-xs sm:px-2 sm:text-sm">
+                  <TabsTrigger
+                    value="holders"
+                    className="flex h-full min-h-0 items-center justify-center self-stretch rounded-[4px] border-0 px-3 py-0 text-xs leading-none font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground/80 data-[state=active]:bg-foreground/5 data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-white/5 dark:data-[state=active]:text-white sm:text-sm"
+                  >
                     Top Holders
                   </TabsTrigger>
                 </TabsList>
@@ -375,6 +386,7 @@ export default function CoinPage() {
                     token={resolvedToken}
                     contractAddressOverride={addressOverride}
                     embedded
+                    refreshKey={tradeRefreshKey}
                   />
                 </TabsContent>
                 <TabsContent value="holders" className="mt-0">
@@ -392,10 +404,12 @@ export default function CoinPage() {
 
           {/* Right Column - Trade Panel */}
           <div className="w-full lg:w-[380px] lg:shrink-0 space-y-6">
-            {isLgUp === true && <TradePanel {...tradePanelProps} />}
+            {isLgUp === true && <TradePanel {...tradePanelProps} glass />}
           </div>
         </div>
       </main>
+
+      <Footer />
 
       {isLgUp === false && (
         <>

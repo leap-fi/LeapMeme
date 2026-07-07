@@ -330,7 +330,7 @@ export function TokenInfo({
 
   if (embedded && withChart) {
     const chartAddress = resolveTokenAddress(token, contractAddressOverride) ?? ''
-    return <KlineChart address={chartAddress} footer={embeddedFooter} />
+    return <KlineChart address={chartAddress} footer={embeddedFooter} embedded />
   }
 
   if (embedded) {

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AccountApiError } from '@/lib/account/api'
 import { fetchAccountMarkets } from '@/lib/account/markets'
 import type { AccountMarket } from '@/lib/account/types'
 
@@ -35,11 +34,7 @@ export function useAccountMarkets(): UseAccountMarketsState {
       .catch((err: unknown) => {
         if (cancelled) return
         const message =
-          err instanceof AccountApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : 'Failed to load markets'
+          err instanceof Error ? err.message : 'Failed to load markets'
         setError(message)
         setMarkets([])
       })

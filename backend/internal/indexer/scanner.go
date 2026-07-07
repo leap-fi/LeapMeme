@@ -202,8 +202,10 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 		ltAddr := ethcommon.BytesToAddress(lg.Topics[3].Bytes())
 
 		var launch *launchParamsDecoded
+		var seedUsdc *big.Int
 		if tx, _, err := s.client.TransactionByHash(ctx, lg.TxHash); err == nil && tx != nil {
 			launch, _ = decodeLaunchParamsFromTx(s.zapABI, tx)
+			seedUsdc, _ = decodeSeedUsdcFromTx(s.zapABI, tx)
 		}
 
 		symbol, name := s.readTokenMeta(ctx, tokenAddr)
@@ -242,7 +244,66 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 		if err := model.UpsertToken(token); err != nil {
 			return err
 		}
+		if err := s.recordSeedBuy(ctx, block, lg.TxHash, tokenAddr, creator, symbol, name, seedUsdc); err != nil {
+			common.SysError(fmt.Sprintf("indexer seed buy %s: %v", token.Address, err))
+		}
 	}
+	return nil
+}
+
+func (s *Scanner) recordSeedBuy(
+	ctx context.Context,
+	block *types.Block,
+	txHash ethcommon.Hash,
+	tokenAddr ethcommon.Address,
+	creator ethcommon.Address,
+	symbol, name string,
+	seedUsdc *big.Int,
+) error {
+	if seedUsdc == nil || seedUsdc.Sign() <= 0 {
+		return nil
+	}
+
+	receipt, err := s.client.TransactionReceipt(ctx, txHash)
+	if err != nil {
+		return err
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return nil
+	}
+
+	transfers := parseTransferLogs(receipt.Logs)
+	amountRaw := findTransferAmount(transfers, tokenAddr, creator, true)
+	if amountRaw == nil || amountRaw.Sign() == 0 {
+		return nil
+	}
+
+	volume := formatTokenAmount(seedUsdc, 6)
+	amount := formatTokenAmount(amountRaw, 18)
+	price := calcPrice(volume, amount)
+
+	trade := &model.Trade{
+		Hash:         txHash.Hex(),
+		TokenAddress: strings.ToLower(tokenAddr.Hex()),
+		Symbol:       symbol,
+		Name:         name,
+		Account:      strings.ToLower(creator.Hex()),
+		Side:         "BUY",
+		Amount:       amount,
+		Volume:       volume,
+		Price:        price,
+		Source:       "zap",
+		TradeTime:    int64(block.Time()) * 1000,
+		BlockNumber:  block.NumberU64(),
+	}
+	if err := model.InsertTradeIgnoreDuplicate(trade); err != nil {
+		return err
+	}
+	if eng := kline.Default(); eng != nil {
+		eng.OnTrade(trade)
+	}
+
+	_ = s.syncTokenMarketState(ctx, tokenAddr)
 	return nil
 }
 
@@ -300,15 +361,19 @@ func (s *Scanner) processTradeTx(
 	transfers := parseTransferLogs(receipt.Logs)
 	// 获取交易金额和交易量
 	var amountRaw, volumeRaw *big.Int
+	zapAddr := *tx.To()
+	bondingAddr := ethcommon.HexToAddress(s.cfg.BondingAddress)
 
 	switch side {
 	case "BUY":
 		if len(values) > 1 {
 			if v, ok := values[1].(*big.Int); ok {
-				volumeRaw = v
+				volumeRaw = buyNetUsdcToBonding(transfers, s.usdcAddr, zapAddr, bondingAddr)
+				if volumeRaw == nil {
+					volumeRaw = applyBuyFeeNet(v)
+				}
 			}
 		}
-		// 根据交易方向和 token 地址，获取交易金额
 		amountRaw = findTransferAmount(transfers, tokenAddr, trader, true)
 		if volumeRaw == nil {
 			volumeRaw = findTransferAmount(transfers, s.usdcAddr, trader, false)
@@ -319,7 +384,7 @@ func (s *Scanner) processTradeTx(
 				amountRaw = v
 			}
 		}
-		volumeRaw = findTransferAmount(transfers, s.usdcAddr, trader, true)
+		volumeRaw = sellGrossUsdcFromBonding(transfers, s.usdcAddr, bondingAddr, zapAddr)
 		if amountRaw == nil {
 			amountRaw = findTransferAmount(transfers, tokenAddr, trader, false)
 		}
@@ -363,11 +428,7 @@ func (s *Scanner) processTradeTx(
 		eng.OnTrade(trade)
 	}
 
-	buyDelta := 0.0
-	if side == "BUY" {
-		buyDelta = model.ParseDecimalString(volume)
-	}
-	_ = model.UpdateTokenAfterTrade(strings.ToLower(tokenAddr.Hex()), price, buyDelta)
+	_ = s.syncTokenMarketState(ctx, tokenAddr)
 	return nil
 }
 

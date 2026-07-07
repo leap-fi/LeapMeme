@@ -236,10 +236,18 @@ export function useLaunchToken() {
       underlying: string,
       leverageLabel: string,
       direction: 'LONG' | 'SHORT',
+      accountLtAddress?: `0x${string}` | null,
     ) => {
       const seq = ++resolveSeq.current
       if (!registryLoadedRef.current) setLtLoading(true)
       try {
+        if (accountLtAddress) {
+          if (seq === resolveSeq.current) {
+            setLtAddress(accountLtAddress)
+          }
+          return accountLtAddress
+        }
+
         const lt = await resolveLtForPair(underlying, leverageLabel, direction)
         if (seq === resolveSeq.current) {
           registryLoadedRef.current = true
@@ -288,11 +296,13 @@ export function useLaunchToken() {
 
       setTxState({ status: 'resolving_lt' })
       try {
-        const lt = await resolveLtForPair(
-          input.underlying,
-          input.leverageLabel,
-          input.direction,
-        )
+        const lt =
+          ltAddress ??
+          (await resolveLtForPair(
+            input.underlying,
+            input.leverageLabel,
+            input.direction,
+          ))
         if (!lt) {
           throw new Error(
             formatLtPairNotFoundMessage(

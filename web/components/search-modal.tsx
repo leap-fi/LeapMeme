@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Search, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -168,6 +169,11 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   const inputRef = useRef<HTMLInputElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
+  const [portalReady, setPortalReady] = useState(false)
+
+  useEffect(() => {
+    setPortalReady(true)
+  }, [])
 
   const loadTrendingData = useCallback(async () => {
     setTrendingLoading(true)
@@ -259,19 +265,23 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     }
   }, [isOpen, query])
 
-  if (!isOpen) return null
+  if (!isOpen || !portalReady) return null
 
   const isSearching = query.trim().length > 0
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} aria-hidden />
+      <div
+        className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden
+      />
 
       <div
         ref={modalRef}
-        className="fixed z-50 flex flex-col overflow-hidden bg-card shadow-2xl
+        className="fixed z-[101] flex flex-col overflow-hidden border-border/50 bg-background/85 shadow-2xl backdrop-blur-xl supports-[backdrop-filter]:bg-background/75
           inset-x-0 top-0 bottom-0 max-h-[100dvh]
-          md:inset-x-auto md:bottom-auto md:left-1/2 md:top-20 md:h-auto md:max-h-none md:w-full md:max-w-lg md:-translate-x-1/2 md:rounded-xl md:border md:border-border"
+          md:inset-x-auto md:bottom-auto md:left-1/2 md:top-20 md:h-auto md:max-h-none md:w-full md:max-w-lg md:-translate-x-1/2 md:rounded-xl md:border"
       >
         <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
@@ -362,6 +372,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }
