@@ -3,6 +3,7 @@ import {
   getKlineList,
   listItemsToCandles,
   openKlineStream,
+  resolveKlinePriceDivisor,
   wsPushToCandle,
   type KlineStream,
 } from '@/lib/tradingview/api'
@@ -34,6 +35,7 @@ export function useKlineFeed(address: string, period: KlinePeriod): UseKlineFeed
   const safeAddress = useMemo(() => address.trim(), [address])
 
   const streamRef = useRef<KlineStream | null>(null)
+  const priceDivisorRef = useRef(1)
   // Track the latest period so the stream can be opened with the right value
   // even though the WS effect itself does not depend on `period`.
   const periodRef = useRef<KlinePeriod>(period)
@@ -41,7 +43,7 @@ export function useKlineFeed(address: string, period: KlinePeriod): UseKlineFeed
 
   // Stable callback so the WS subscription doesn't re-create on every render.
   const handlePush = useCallback((push: KlineWsPush) => {
-    const newCandle = wsPushToCandle(push)
+    const newCandle = wsPushToCandle(push, priceDivisorRef.current)
     setCandles((prev) => mergePushedCandle(prev, newCandle))
   }, [])
 
@@ -69,6 +71,7 @@ export function useKlineFeed(address: string, period: KlinePeriod): UseKlineFeed
     })
       .then((res) => {
         if (cancelled) return
+        priceDivisorRef.current = resolveKlinePriceDivisor(res.data)
         const next = listItemsToCandles(res.data, period)
         setCandles(next)
       })

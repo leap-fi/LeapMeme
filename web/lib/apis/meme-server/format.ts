@@ -38,8 +38,9 @@ export function pickBondingCurveVolumeUsd(
     detail.bondingCurveVolume,
     detail.bonding_curve_volume_usd,
   ]) {
+    if (value == null || value === '') continue
     const n = toNumber(value)
-    if (n > 0) return n
+    if (Number.isFinite(n)) return n
   }
   return null
 }
@@ -51,8 +52,8 @@ export function resolveBondingCurveVolumeUsd(params: {
   volumeUsd?: number | string | null
 }): number {
   const { progress, graduated, volumeUsd } = params
-  const fromApi = toNumber(volumeUsd)
-  if (fromApi > 0) {
+  if (volumeUsd != null && volumeUsd !== '') {
+    const fromApi = Math.max(0, toNumber(volumeUsd))
     return graduated
       ? BONDING_CURVE_GRADUATION_TARGET_USD
       : Math.min(fromApi, BONDING_CURVE_GRADUATION_TARGET_USD)

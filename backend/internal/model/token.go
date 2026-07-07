@@ -2,12 +2,10 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/leap/backend/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -201,70 +199,6 @@ func ListTokens(filter TokenListFilter) ([]Token, error) {
 	return tokens, nil
 }
 
-func UpdateTokenAfterTrade(address string, lastPrice string, buyVolumeDelta float64) error {
-	address = strings.ToLower(strings.TrimSpace(address))
-	if address == "" {
-		return nil
-	}
-	token, err := GetTokenByAddress(address)
-	if err != nil || token == nil {
-		return err
-	}
-
-	curveVol := ParseDecimalString(token.BondingCurveVolume)
-	if buyVolumeDelta > 0 && !isGraduatedStatus(token.Status) {
-		curveVol += buyVolumeDelta
-	}
-	progress := calcBondingCurveProgress(curveVol, token.Status)
-	status := token.Status
-	graduatedAt := token.GraduatedAt
-	if progress >= 100 && !isGraduatedStatus(status) {
-		status = "GRADUATED"
-		if graduatedAt == 0 {
-			graduatedAt = time.Now().UnixMilli()
-		}
-	}
-
-	marketCap := token.MarketCap
-	if lastPrice != "" && token.TotalSupply != "" {
-		if mc, ok := calcMarketCap(lastPrice, token.TotalSupply); ok {
-			marketCap = mc
-		}
-	}
-
-	return DB.Model(&Token{}).Where("address = ?", address).Updates(map[string]any{
-		"last_price":             lastPrice,
-		"bonding_curve_volume":   formatDecimalFloat(curveVol),
-		"bonding_curve_progress": formatProgress(progress),
-		"market_cap":             marketCap,
-		"status":                 status,
-		"graduated_at":           graduatedAt,
-	}).Error
-}
-
-func isGraduatedStatus(status string) bool {
-	switch strings.ToUpper(status) {
-	case "GRADUATED", "COMPLETED", "MIGRATED":
-		return true
-	default:
-		return false
-	}
-}
-
-func calcBondingCurveProgress(volume float64, status string) float64 {
-	if isGraduatedStatus(status) {
-		return 100
-	}
-	if volume <= 0 {
-		return 0
-	}
-	p := volume / float64(common.BondingCurveGraduationTargetUSD) * 100
-	if p > 100 {
-		return 100
-	}
-	return p
-}
-
 func ParseDecimalString(s string) float64 {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -282,10 +216,6 @@ func formatDecimalFloat(v float64) string {
 		return "0"
 	}
 	return strconv.FormatFloat(v, 'f', -1, 64)
-}
-
-func formatProgress(v float64) string {
-	return fmt.Sprintf("%.4f", v)
 }
 
 func CalcMarketCap(priceStr, supplyStr string) (string, bool) {

@@ -31,7 +31,7 @@ function toKlineNumber(value: number | string | undefined): number {
 }
 
 /** Some responses use 1e8 fixed-point prices (27456 -> 0.00027456), others are already decimal. */
-function detectPriceDivisor(items: KlineListItem[]): number {
+export function resolveKlinePriceDivisor(items: KlineListItem[]): number {
   const closes = items.map((item) => toKlineNumber(item.closePrice)).filter((p) => p > 0)
   if (closes.length === 0) return 1
 
@@ -308,12 +308,13 @@ export function openKlineStream(
 }
 
 export function listItemsToCandles(items: KlineListItem[], _period: KlinePeriod): KlineCandle[] {
-  const priceDivisor = detectPriceDivisor(items)
+  const priceDivisor = resolveKlinePriceDivisor(items)
   return items
     .map((item) => toCandle(normalizeKlineItem(item, priceDivisor)))
     .sort((a, b) => a.time - b.time)
 }
 
-export function wsPushToCandle(push: KlineWsPush): KlineCandle {
-  return toCandle(push.data)
+export function wsPushToCandle(push: KlineWsPush, priceDivisor = 1): KlineCandle {
+  const item = priceDivisor === 1 ? push.data : normalizeKlineItem(push.data, priceDivisor)
+  return toCandle(item)
 }

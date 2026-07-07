@@ -470,6 +470,9 @@ func (s *Scanner) syncBondingCurveFromChain(ctx context.Context, token *model.To
 	switch strings.ToUpper(strings.TrimSpace(token.Status)) {
 	case "GRADUATED", "COMPLETED", "MIGRATED":
 		token.BondingCurveProgress = "100"
+		if raised, err := s.readRaisedUsdc(ctx, tokenAddr); err == nil && raised != nil {
+			token.BondingCurveVolume = formatTokenAmount(raised, 6)
+		}
 		return
 	}
 	raised, err := s.readRaisedUsdc(ctx, tokenAddr)

@@ -285,34 +285,71 @@ func GetTokenDetailStats(tokenAddress string) (TokenDetailStats, error) {
 	}, nil
 }
 
+// calcTokenPriceChange24h returns spot price change: current last_price vs price ~24h ago (kline close).
 func calcTokenPriceChange24h(tokenAddress string, since24h int64) (float64, error) {
-	var oldest Trade
-	err := DB.Where("LOWER(token_address) = ? AND trade_time >= ?", tokenAddress, since24h).
-		Order("trade_time ASC").
-		Limit(1).
-		Find(&oldest).Error
-	if err != nil {
-		return 0, err
-	}
-	if oldest.ID == 0 {
+	tokenAddress = strings.ToLower(strings.TrimSpace(tokenAddress))
+	if tokenAddress == "" {
 		return 0, nil
+	}
+
+	currentPrice := resolveCurrentSpotPrice(tokenAddress)
+	if currentPrice <= 0 {
+		return 0, nil
+	}
+
+	oldPrice := resolvePrice24hAgo(tokenAddress, since24h)
+	if oldPrice <= 0 {
+		return 0, nil
+	}
+	return (currentPrice - oldPrice) / oldPrice, nil
+}
+
+func resolveCurrentSpotPrice(tokenAddress string) float64 {
+	token, err := GetTokenByAddress(tokenAddress)
+	if err == nil && token != nil {
+		if price := ParseDecimalString(token.LastPrice); price > 0 {
+			return price
+		}
 	}
 
 	var latest Trade
-	err = DB.Where("LOWER(token_address) = ? AND trade_time >= ?", tokenAddress, since24h).
+	if err := DB.Where("LOWER(token_address) = ?", tokenAddress).
 		Order("trade_time DESC").
 		Limit(1).
-		Find(&latest).Error
-	if err != nil {
-		return 0, err
+		Find(&latest).Error; err != nil || latest.ID == 0 {
+		return 0
+	}
+	return ParseDecimalString(latest.Price)
+}
+
+func resolvePrice24hAgo(tokenAddress string, since24h int64) float64 {
+	sinceSec := since24h / 1000
+
+	var kline Kline
+	err := DB.Where(
+		"LOWER(token_address) = ? AND period = ? AND begin_time >= ? AND CAST(close_price AS DECIMAL(36,18)) > 0",
+		tokenAddress, "1m", sinceSec,
+	).Order("begin_time ASC").Limit(1).Find(&kline).Error
+	if err == nil && kline.BeginTime > 0 {
+		return ParseDecimalString(kline.ClosePrice)
 	}
 
-	oldPrice := ParseDecimalString(oldest.Price)
-	newPrice := ParseDecimalString(latest.Price)
-	if oldPrice <= 0 || newPrice <= 0 {
-		return 0, nil
+	err = DB.Where(
+		"LOWER(token_address) = ? AND period = ? AND begin_time < ? AND CAST(close_price AS DECIMAL(36,18)) > 0",
+		tokenAddress, "1m", sinceSec,
+	).Order("begin_time DESC").Limit(1).Find(&kline).Error
+	if err == nil && kline.BeginTime > 0 {
+		return ParseDecimalString(kline.ClosePrice)
 	}
-	return (newPrice - oldPrice) / oldPrice, nil
+
+	var oldest Trade
+	if err := DB.Where("LOWER(token_address) = ? AND trade_time >= ?", tokenAddress, since24h).
+		Order("trade_time ASC").
+		Limit(1).
+		Find(&oldest).Error; err != nil || oldest.ID == 0 {
+		return 0
+	}
+	return ParseDecimalString(oldest.Price)
 }
 
 func GetDistinctAccountsByToken(tokenAddress string, limit int) ([]string, error) {
