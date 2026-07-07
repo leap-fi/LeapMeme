@@ -32,8 +32,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-background" suppressHydrationWarning>
-      <body className="font-sans antialiased" suppressHydrationWarning>
+    <html lang="en" className="dark bg-background" suppressHydrationWarning>
+      <body className="bg-background font-sans antialiased" suppressHydrationWarning>
         <Providers>{children}</Providers>
         {vercelAnalyticsEnabled && <Analytics />}
         {gaMeasurementId ? <GoogleAnalytics gaId={gaMeasurementId} /> : null}

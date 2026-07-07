@@ -5,28 +5,33 @@ import { useTheme } from 'next-themes'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-// webgl-fluid-enhanced 基础参数
+// webgl-fluid-enhanced 基础参数（偏柔和烟雾：落点轻、拖尾在，参考 Houdini 式扩散感）
 const BASE_FLUID_CONFIG = {
-  simResolution: 128, // 速度场模拟分辨率，越低越省性能、纹理越糊
+  simResolution: 256, // 速度场模拟分辨率，越低越省性能、纹理越糊
   dyeResolution: 512, // 染料（可见烟雾）分辨率，影响拖尾清晰度
-  densityDissipation: 5, // 染料消散速度；越大鼠标落点消散越快、不易堆成实心圆
-  velocityDissipation: 3, // 速度消散；越小彗尾拖得越长
-  pressure: 0.1,
-  pressureIterations: 20, // 压力求解迭代次数，影响流体稳定性
-  curl: 3, // 旋度强度，增加涡流/卷曲感
-  splatRadius: 0.028, // 单次 splat 半径；越小鼠标中心点越细
-  splatForce: 2050, // 单次 splat 注入力度；与半径配合控制浓淡
-  shading: true, // 光照 shading，让烟雾有体积感
+  densityDissipation: 5, // 染料消散；越大落点越不易堆成实心团
+  velocityDissipation: 0.01, // 速度消散；略低一点保留彗尾长度
+  pressure: 0.5, // 压力；影响流体稳定性
+  pressureIterations: 4, // 压力求解迭代次数，影响流体稳定性
+  curl: 2, // 旋度；略降减少落点处涡流堆积
+  splatRadius: 0.03, // splat 半径；越小鼠标中心越细、越不「糊一团」
+  splatForce: 0.1, // 注入力度；降低可减轻落点浓度，拖尾靠位移速度补足
+  shading: true, // 关闭体积 shading，避免落点过亮、过实心
   colorful: false, // false = 使用 colorPalette 单色，不随机彩虹色
-  bloom: false,
-  sunrays: false,
+  bloom: true, // 轻微 bloom，边缘更柔、鼠标前进方向有手电筒效果
+  bloomIterations: 1, // bloom 迭代次数，影响 bloom 效果
+  bloomResolution: 256, // bloom 分辨率，影响 bloom 效果
+  bloomIntensity: 0.28, // bloom 强度，影响 bloom 效果
+  bloomThreshold: 0.42, // bloom 阈值，影响 bloom 效果
+  bloomSoftKnee: 0.75, // bloom 软化，影响 bloom 效果
+  sunrays: true, // 太阳光线，开启才不会有像素颗粒
   transparent: true, // 画布透明，叠在页面背景上
   hover: false, // 关闭库内置 hover，改由下方 mousemove 手动 splat
-  brightness: 0.32, // 染料整体亮度
+  brightness: 0.03, // 整体亮度；配合较低 splatForce，落点不会过曝★★★★★
 } as const
 
-const SPLAT_VELOCITY_SCALE = 2.8 // 鼠标位移 → splat 速度的倍率；略大于 1 可拉长彗尾
-const SPLAT_MIN_SPEED = 2 // 低于该速度（px/frame）不 splat，避免悬停微抖堆积
+const SPLAT_VELOCITY_SCALE = 3.5 // 略提高位移倍率，落点变淡后仍保留拖尾
+const SPLAT_MIN_SPEED = 10 // 悬停/微抖不 splat，减少指针处染料堆积
 
 const FLUID_THEMES = {
   dark: {
