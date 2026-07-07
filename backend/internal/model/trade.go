@@ -207,8 +207,9 @@ const (
 	TokenPositionCandidates = 200
 	UserPositionCandidates  = 100
 	tradeFeeBps             = 75
-	creatorFeeShareBps       = 3333
-	feeBpsDenominator        = 10000
+	// 与合约 LeapZap.creatorFeeShareBps 对齐：创作者占手续费 66.67%（0.50% of volume），协议 33.33%。
+	creatorFeeShareBps = 6667
+	feeBpsDenominator  = 10000
 )
 
 // TokenDetailStats aggregates trade metrics for token detail / trending.

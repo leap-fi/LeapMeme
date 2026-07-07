@@ -20,6 +20,7 @@ import { publicClient } from '@/lib/contracts/client'
 import { hyperEvm } from '@/lib/contracts/chain'
 import {
   CONTRACTS,
+  MAX_TRADE_USDC,
   MIN_SEED_USDC,
   USDC_DECIMALS,
 } from '@/lib/contracts/config'
@@ -275,6 +276,9 @@ export function useLaunchToken() {
       if (!input.ticker.trim()) throw new Error('Please enter a ticker.')
       if (input.seedAmountUsd < MIN_SEED_USDC) {
         throw new Error(`Seed buy must be at least ${MIN_SEED_USDC} USDC.`)
+      }
+      if (MAX_TRADE_USDC > 0 && input.seedAmountUsd > MAX_TRADE_USDC) {
+        throw new Error(`Seed buy cannot exceed ${MAX_TRADE_USDC} USDC in this experience version.`)
       }
 
       const leverage = parseLeverageMultiplier(input.leverageLabel)

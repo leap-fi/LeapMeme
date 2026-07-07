@@ -1,3 +1,5 @@
+import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
+
 export function toNumber(value: number | string | null | undefined): number {
   if (value == null || value === '') return 0
   const n = typeof value === 'number' ? value : Number(value)
@@ -18,7 +20,7 @@ export function normalizeBondingCurveProgress(
 }
 
 /** Graduation threshold on the bonding curve (USD). Align with LeapBonding.GRADUATION_USDC / backend BondingCurveGraduationTargetUSD. */
-export const BONDING_CURVE_GRADUATION_TARGET_USD = 1_000
+export const BONDING_CURVE_GRADUATION_TARGET_USD = PROTOCOL_PROFILE.graduationTargetUsdc
 
 export function pickBondingCurveVolumeUsd(
   detail:

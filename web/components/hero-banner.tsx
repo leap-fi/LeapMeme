@@ -1,10 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, Rocket, Sparkles } from 'lucide-react'
+import { ArrowRight, Rocket, ShieldCheck, Sparkles } from 'lucide-react'
 import { HeroBannerEffect } from '@/components/hero-banner-effect'
+import { useI18n } from '@/lib/i18n/context'
+import { IS_PLAYGROUND } from '@/lib/protocol-profile'
 
 export function HeroBanner() {
+  const { t } = useI18n()
+
   return (
     <Link
       href="/create"
@@ -14,24 +18,29 @@ export function HeroBanner() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/25 via-transparent to-transparent" />
       <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-xl">
-          <div className="mb-1 flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-              leap.fun · HyperEVM
+          <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                {t('hero.badge')}
+              </span>
             </span>
+            {IS_PLAYGROUND ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                <ShieldCheck className="h-3 w-3" />
+                {t('hero.playground')}
+              </span>
+            ) : null}
           </div>
           <h1 className="mb-1 text-2xl font-bold leading-tight text-foreground md:text-3xl">
-            Launch & trade memes <span className="text-primary">backed by perps</span>
+            {t('hero.title.a')} <span className="text-primary">{t('hero.title.b')}</span>
           </h1>
-          <p className="text-sm leading-snug text-foreground">
-            Bonding curve launch, graduation to UniV2, and leveraged LT exposure — create with
-            $20 USDC seed or discover tokens trending now.
-          </p>
+          <p className="text-sm leading-snug text-foreground">{t('hero.subtitle')}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
           <span className="inline-flex items-center gap-2 rounded-lg border border-foreground px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-foreground transition-transform group-hover:translate-x-0.5">
             <Rocket className="h-4 w-4" />
-            Launch a token
+            {t('hero.cta')}
             <ArrowRight className="h-4 w-4 opacity-80" />
           </span>
         </div>

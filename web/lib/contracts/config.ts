@@ -1,3 +1,5 @@
+import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
+
 /** alt.fun 生产合约（HyperEVM）；与 api-pre / 链上存量 token 一致 */
 /** Canonical Multicall3 on HyperEVM (same address as Ethereum mainnet). */
 export const MULTICALL3_ADDRESS =
@@ -22,9 +24,9 @@ export const CONTRACTS = {
     ALT_FUN_CONTRACTS.creatorRewards) as `0x${string}`,
 } as const
 
-/** UI floors per alt.fun integration guide (above on-chain 10 USDC minimum). */
-export const MIN_BUY_USDC = 20
-export const MIN_SELL_USDC = 12
+/** 经济参数由 protocol-profile 单一入口驱动（playground / production 一处切换）。 */
+export const MIN_BUY_USDC = PROTOCOL_PROFILE.minBuyUsdc
+export const MIN_SELL_USDC = PROTOCOL_PROFILE.minSellUsdc
 
 export const USDC_DECIMALS = 6
 export const TOKEN_DECIMALS = 18
@@ -34,5 +36,8 @@ export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as cons
 /** On-chain `LaunchParams.image` — default until custom uploads are wired. */
 export const DEFAULT_TOKEN_IMAGE = '/logo.svg'
 
-/** Matches `Zap.MIN_SEED_USDC` (20 USDC, 6 decimals). */
-export const MIN_SEED_USDC = 20
+/** Matches `Zap.MIN_SEED_USDC`（Playground = 0，Production = 20）。 */
+export const MIN_SEED_USDC = PROTOCOL_PROFILE.minSeedUsdc
+
+/** Matches `Zap.MAX_USDC_PER_TRADE`（buy/sell 全生命周期上限）；0 = 不封顶。 */
+export const MAX_TRADE_USDC = PROTOCOL_PROFILE.maxTradeUsdc

@@ -7,13 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leap/backend/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
-
-// BondingCurveGraduationTargetUSD 必须与自有合约 LeapBonding.GRADUATION_USDC 对齐
-// （本地演示 = 1000 USDC）。生产环境与合约同步调高。
-const BondingCurveGraduationTargetUSD = 1000
 
 type Token struct {
 	ID                   int64  `gorm:"primaryKey"`
@@ -261,7 +258,7 @@ func calcBondingCurveProgress(volume float64, status string) float64 {
 	if volume <= 0 {
 		return 0
 	}
-	p := volume / BondingCurveGraduationTargetUSD * 100
+	p := volume / float64(common.BondingCurveGraduationTargetUSD) * 100
 	if p > 100 {
 		return 100
 	}

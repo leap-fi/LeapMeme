@@ -20,6 +20,7 @@ import { publicClient } from '@/lib/contracts/client'
 import { hyperEvm } from '@/lib/contracts/chain'
 import {
   CONTRACTS,
+  MAX_TRADE_USDC,
   MIN_BUY_USDC,
   MIN_SELL_USDC,
   TOKEN_DECIMALS,
@@ -492,6 +493,9 @@ export function useZapTrade(
         if (Number.parseFloat(amount) < MIN_BUY_USDC) {
           throw new Error(`Minimum buy amount is ${MIN_BUY_USDC} USDC.`)
         }
+        if (MAX_TRADE_USDC > 0 && Number.parseFloat(amount) > MAX_TRADE_USDC) {
+          throw new Error(`Maximum ${MAX_TRADE_USDC} USDC per trade in this experience version.`)
+        }
         const minOut = quote?.estimatedOutRaw
           ? applySlippage(quote.estimatedOutRaw, slippagePercent)
           : BigInt(0)
@@ -506,8 +510,11 @@ export function useZapTrade(
         }
         if (quote) {
           const estUsdc = Number.parseFloat(quote.estimatedOut)
-          if (estUsdc > 0 && estUsdc < MIN_SELL_USDC) {
+          if (MIN_SELL_USDC > 0 && estUsdc > 0 && estUsdc < MIN_SELL_USDC) {
             throw new Error(`Estimated sell output must be at least ${MIN_SELL_USDC} USDC.`)
+          }
+          if (MAX_TRADE_USDC > 0 && estUsdc > MAX_TRADE_USDC) {
+            throw new Error(`Maximum ${MAX_TRADE_USDC} USDC per trade in this experience version.`)
           }
         }
         const minUsdc = quote?.estimatedOutRaw

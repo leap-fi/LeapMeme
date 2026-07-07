@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ChangeEvent } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Header } from '@/components/header'
 import { PriceTicker } from '@/components/price-ticker'
 import { ChevronRight, LinkIcon, Sparkles, Loader2 } from 'lucide-react'
@@ -19,21 +19,22 @@ import { formatChangePercent } from '@/lib/hyperliquid/format'
 import { DEFAULT_TOKEN_IMAGE, isRenderableImageSrc } from '@/lib/image-src'
 import { usePrivyWalletLogin } from '@/hooks/use-privy-wallet-login'
 import { useLaunchToken, formatLtPairNotFoundMessage } from '@/hooks/use-launch-token'
-import { MIN_SEED_USDC } from '@/lib/contracts/config'
+import { MAX_TRADE_USDC, MIN_SEED_USDC } from '@/lib/contracts/config'
+import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
 import { BONDING_CURVE_GRADUATION_TARGET_USD } from '@/lib/apis/meme-server/format'
 import { fetchAwsUploadTokenApi } from '@/lib/apis/account/aws-token.api'
-import {
-  getWorldCupCreatePrefill,
-  parseWorldCupFromQuery,
-} from '@/lib/world-cup-flags'
 
-const seedBuyPresets = [
-  { label: 'MIN', value: 20 },
-  { label: '1%', value: 31 },
-  { label: '2%', value: 62 },
-  { label: '3%', value: 94 },
-  { label: '5%', value: 160 },
-]
+const seedBuyPresets = PROTOCOL_PROFILE.seedPresets.map((value) => ({
+  label: value === 0 ? 'NONE' : `$${value}`,
+  value,
+}))
+
+const clampSeed = (value: number) => {
+  const min = MIN_SEED_USDC
+  const max = MAX_TRADE_USDC > 0 ? MAX_TRADE_USDC : Number.POSITIVE_INFINITY
+  if (!Number.isFinite(value)) return min
+  return Math.min(Math.max(value, min), max)
+}
 
 export default function CreatePage() {
   const [direction, setDirection] = useState<'LONG' | 'SHORT'>('LONG')
@@ -46,12 +47,10 @@ export default function CreatePage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [seedAmount, setSeedAmount] = useState(20)
+  const [seedAmount, setSeedAmount] = useState(MIN_SEED_USDC)
   const [showSocialLinks, setShowSocialLinks] = useState(false)
   const [socialLinks, setSocialLinks] = useState({ twitter: '', telegram: '', website: '' })
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const worldCupPrefillAppliedRef = useRef(false)
   const { items: markets, loading: marketsLoading } = useMarketsContext()
   const loginWithWallet = usePrivyWalletLogin()
   const {
@@ -95,23 +94,6 @@ export default function CreatePage() {
     if (!selectedAsset) return
     void resolveLt(selectedAsset, leverage, direction)
   }, [selectedAsset, leverage, direction, resolveLt])
-
-  const worldCupTeam = useMemo(
-    () => parseWorldCupFromQuery(searchParams.get('from')),
-    [searchParams],
-  )
-  const isWorldCupTokenLocked = !!worldCupTeam
-
-  useEffect(() => {
-    if (!worldCupTeam || worldCupPrefillAppliedRef.current) return
-    worldCupPrefillAppliedRef.current = true
-    const prefill = getWorldCupCreatePrefill(worldCupTeam)
-    setTokenName(prefill.tokenName)
-    setTicker(prefill.ticker)
-    setDescription(prefill.description)
-    setTokenImage(prefill.image)
-    setUploadError(null)
-  }, [worldCupTeam])
 
   const handleLaunch = useCallback(async () => {
     resetTx()
@@ -242,6 +224,7 @@ export default function CreatePage() {
     tokenName.trim().length > 0 &&
     ticker.trim().length > 0 &&
     seedAmount >= MIN_SEED_USDC &&
+    (MAX_TRADE_USDC === 0 || seedAmount <= MAX_TRADE_USDC) &&
     !!ltAddress &&
     !ltLoading
 
@@ -278,18 +261,10 @@ export default function CreatePage() {
             <div>
               <p className="text-primary font-mono text-sm mb-1">NEW TOKEN</p>
               <h1 className="text-2xl font-bold text-foreground mb-2">Create a token</h1>
-              {worldCupTeam ? (
-                <p className="text-muted-foreground text-sm">
-                  Launching the national team token for{' '}
-                  <span className="text-foreground font-medium">{worldCupTeam.name}</span> — World
-                  Cup 2026. Token name, ticker, description, and image are fixed for this nation.
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  Choose a direction, pick your underlying, set your leverage, and deploy to the
-                  bonding curve in one transaction.
-                </p>
-              )}
+              <p className="text-muted-foreground text-sm">
+                Choose a direction, pick your underlying, set your leverage, and deploy to the
+                bonding curve in one transaction.
+              </p>
             </div>
 
             {/* Step 1: Choose your pair */}
@@ -503,11 +478,7 @@ export default function CreatePage() {
                 <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">2</span>
                 <div>
                   <h2 className="font-semibold text-foreground">Token details</h2>
-                  <p className="text-muted-foreground text-sm">
-                    {isWorldCupTokenLocked
-                      ? 'Locked for this World Cup nation — pick your pair and seed buy below.'
-                      : "These can't be changed after launch."}
-                  </p>
+                  <p className="text-muted-foreground text-sm">These can&apos;t be changed after launch.</p>
                 </div>
               </div>
 
@@ -521,11 +492,7 @@ export default function CreatePage() {
                     value={tokenName}
                     onChange={(e) => setTokenName(e.target.value.slice(0, 34))}
                     placeholder="e.g. HYPERBULL"
-                    readOnly={isWorldCupTokenLocked}
-                    className={cn(
-                      'bg-card border-border font-mono',
-                      isWorldCupTokenLocked && 'cursor-not-allowed opacity-80',
-                    )}
+                    className="bg-card border-border font-mono"
                   />
                 </div>
                 <div className="space-y-2">
@@ -537,11 +504,7 @@ export default function CreatePage() {
                     value={ticker}
                     onChange={(e) => setTicker(e.target.value.slice(0, 10).toUpperCase())}
                     placeholder="e.g. HBULL"
-                    readOnly={isWorldCupTokenLocked}
-                    className={cn(
-                      'bg-card border-border font-mono',
-                      isWorldCupTokenLocked && 'cursor-not-allowed opacity-80',
-                    )}
+                    className="bg-card border-border font-mono"
                   />
                 </div>
               </div>
@@ -552,11 +515,7 @@ export default function CreatePage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What's the vibe?"
-                  readOnly={isWorldCupTokenLocked}
-                  className={cn(
-                    'bg-card border-border font-mono',
-                    isWorldCupTokenLocked && 'cursor-not-allowed opacity-80',
-                  )}
+                  className="bg-card border-border font-mono"
                 />
               </div>
 
@@ -576,60 +535,42 @@ export default function CreatePage() {
                       <img
                         src={tokenImage!}
                         alt="Token"
-                        className={cn(
-                          'w-full h-full',
-                          isWorldCupTokenLocked ? 'object-contain p-1' : 'object-cover',
-                        )}
+                        className="h-full w-full object-cover"
                       />
                     </div>
-                    {!isWorldCupTokenLocked && (
-                      <div className="flex flex-col gap-2">
-                        <button
-                          type="button"
-                          disabled={uploadingImage}
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-4 py-1.5 rounded-md border border-border bg-transparent font-mono text-xs text-muted-foreground hover:text-foreground hover:border-primary/60 transition-colors disabled:opacity-50"
-                        >
-                          {uploadingImage ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              UPLOADING…
-                            </span>
-                          ) : (
-                            'CHANGE'
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={uploadingImage}
-                          onClick={handleRemoveTokenImage}
-                          className="px-4 py-1.5 rounded-md border border-border bg-transparent font-mono text-xs text-muted-foreground hover:text-foreground hover:border-primary/60 transition-colors disabled:opacity-50"
-                        >
-                          REMOVE
-                        </button>
-                      </div>
-                    )}
-                    {isWorldCupTokenLocked && (
-                      <p className="text-xs font-mono text-muted-foreground self-center">
-                        National flag (fixed)
-                      </p>
-                    )}
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        disabled={uploadingImage}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-1.5 rounded-md border border-border bg-transparent font-mono text-xs text-muted-foreground hover:text-foreground hover:border-primary/60 transition-colors disabled:opacity-50"
+                      >
+                        {uploadingImage ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            UPLOADING…
+                          </span>
+                        ) : (
+                          'CHANGE'
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={uploadingImage}
+                        onClick={handleRemoveTokenImage}
+                        className="px-4 py-1.5 rounded-md border border-border bg-transparent font-mono text-xs text-muted-foreground hover:text-foreground hover:border-primary/60 transition-colors disabled:opacity-50"
+                      >
+                        REMOVE
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div
-                    className={cn(
-                      'border border-dashed border-border rounded-lg px-6 py-10 bg-card/40 text-center space-y-3 transition-colors',
-                      !isWorldCupTokenLocked &&
-                        'cursor-pointer hover:border-primary/60 hover:bg-card/60',
-                    )}
-                    onClick={
-                      isWorldCupTokenLocked
-                        ? undefined
-                        : () => fileInputRef.current?.click()
-                    }
-                    onDrop={isWorldCupTokenLocked ? undefined : handleDrop}
-                    onDragOver={isWorldCupTokenLocked ? undefined : handleDragOver}
-                    onPaste={isWorldCupTokenLocked ? undefined : handlePaste}
+                    className="cursor-pointer space-y-3 rounded-lg border border-dashed border-border bg-card/40 px-6 py-10 text-center transition-colors hover:border-primary/60 hover:bg-card/60"
+                    onClick={() => fileInputRef.current?.click()}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onPaste={handlePaste}
                   >
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-10 h-10 rounded-md bg-secondary/60 flex items-center justify-center">
@@ -709,7 +650,11 @@ export default function CreatePage() {
                 <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">3</span>
                 <div>
                   <h2 className="font-semibold text-foreground">Seed buy</h2>
-                  <p className="text-muted-foreground text-sm">Mandatory min $20</p>
+                  <p className="text-muted-foreground text-sm">
+                    {MIN_SEED_USDC > 0
+                      ? `Mandatory min $${MIN_SEED_USDC}`
+                      : `Optional — up to $${MAX_TRADE_USDC} in this experience version`}
+                  </p>
                 </div>
               </div>
 
@@ -720,14 +665,19 @@ export default function CreatePage() {
                   <input
                     type="number"
                     value={seedAmount}
-                    onChange={(e) => setSeedAmount(Math.max(20, parseInt(e.target.value) || 20))}
+                    onChange={(e) => setSeedAmount(clampSeed(parseFloat(e.target.value)))}
                     className="bg-transparent outline-none w-full font-mono"
-                    min={20}
+                    min={MIN_SEED_USDC}
+                    max={MAX_TRADE_USDC > 0 ? MAX_TRADE_USDC : undefined}
+                    step={0.05}
                   />
                 </div>
 
                 {/* Preset Buttons */}
-                <div className="grid grid-cols-5 gap-2">
+                <div
+                  className="grid gap-2"
+                  style={{ gridTemplateColumns: `repeat(${seedBuyPresets.length}, minmax(0, 1fr))` }}
+                >
                   {seedBuyPresets.map((preset) => (
                     <button
                       key={preset.label}
@@ -818,10 +768,7 @@ export default function CreatePage() {
                     <img
                       src={tokenImage!}
                       alt="Token"
-                      className={cn(
-                        'w-full h-full',
-                        isWorldCupTokenLocked ? 'object-contain p-1' : 'object-cover',
-                      )}
+                      className="h-full w-full object-cover"
                     />
                   )}
                 </div>
@@ -911,7 +858,7 @@ export default function CreatePage() {
                 </li>
                 <li className="flex gap-2">
                   <span className="text-primary font-mono">3</span>
-                  At $9.0k MCAP, token graduates to DEX
+                  At ${BONDING_CURVE_GRADUATION_TARGET_USD} raised on the curve, token graduates to DEX
                 </li>
               </ol>
             </div>

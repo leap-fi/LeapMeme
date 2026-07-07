@@ -1,8 +1,11 @@
 'use client'
 
-import { Send } from 'lucide-react'
+import Link from 'next/link'
+import { BookOpen, Send } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { LanguageToggle } from '@/components/language-toggle'
+import { useI18n } from '@/lib/i18n/context'
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -18,16 +21,26 @@ function XIcon({ className }: { className?: string }) {
 }
 
 export function Footer() {
+  const { t } = useI18n()
+
   return (
     <footer className="border-t border-border bg-card/50 px-6 py-4">
       <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-3">
-        <div className="flex justify-center sm:justify-start">
+        <div className="flex items-center justify-center gap-4 sm:justify-start">
           <Logo width={32} height={32} className="h-8 w-8" />
+          <Link
+            href="/docs"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-primary"
+          >
+            <BookOpen className="h-4 w-4" />
+            {t('footer.docs')}
+          </Link>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground">2026 All rights reserved</p>
+        <p className="text-center text-xs text-muted-foreground">{t('footer.rights')}</p>
 
         <div className="flex items-center justify-center gap-3 sm:justify-end">
+          <LanguageToggle />
           <ThemeToggle />
           <a
             href="https://x.com/leapfun"
