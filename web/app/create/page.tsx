@@ -20,7 +20,7 @@ import { formatChangePercent } from '@/lib/hyperliquid/format'
 import { DEFAULT_TOKEN_IMAGE, isRenderableImageSrc } from '@/lib/image-src'
 import { usePrivyWalletLogin } from '@/hooks/use-privy-wallet-login'
 import { useLaunchToken, formatLtPairNotFoundMessage } from '@/hooks/use-launch-token'
-import { MAX_TRADE_USDC, MIN_SEED_USDC } from '@/lib/contracts/config'
+import { MAX_SEED_USDC, MIN_SEED_USDC } from '@/lib/contracts/config'
 import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
 import { BONDING_CURVE_GRADUATION_TARGET_USD } from '@/lib/apis/meme-server/format'
 import { fetchAwsUploadTokenApi } from '@/lib/apis/meme-server/aws-token.api'
@@ -32,7 +32,7 @@ const seedBuyPresets = PROTOCOL_PROFILE.seedPresets.map((value) => ({
 
 const clampSeed = (value: number) => {
   const min = MIN_SEED_USDC
-  const max = MAX_TRADE_USDC > 0 ? MAX_TRADE_USDC : Number.POSITIVE_INFINITY
+  const max = MAX_SEED_USDC
   if (!Number.isFinite(value)) return min
   return Math.min(Math.max(value, min), max)
 }
@@ -237,7 +237,7 @@ export default function CreatePage() {
     tokenName.trim().length > 0 &&
     ticker.trim().length > 0 &&
     seedAmount >= MIN_SEED_USDC &&
-    (MAX_TRADE_USDC === 0 || seedAmount <= MAX_TRADE_USDC) &&
+    seedAmount <= MAX_SEED_USDC &&
     !!ltAddress &&
     !ltLoading
 
@@ -664,9 +664,7 @@ export default function CreatePage() {
                 <div>
                   <h2 className="font-semibold text-foreground">Seed buy</h2>
                   <p className="text-muted-foreground text-sm">
-                    {MIN_SEED_USDC > 0
-                      ? `Mandatory min $${MIN_SEED_USDC}`
-                      : `Optional — up to $${MAX_TRADE_USDC} in this experience version`}
+                    Optional — up to ${MAX_SEED_USDC}
                   </p>
                 </div>
               </div>
@@ -681,7 +679,7 @@ export default function CreatePage() {
                     onChange={(e) => setSeedAmount(clampSeed(parseFloat(e.target.value)))}
                     className="bg-transparent outline-none w-full font-mono"
                     min={MIN_SEED_USDC}
-                    max={MAX_TRADE_USDC > 0 ? MAX_TRADE_USDC : undefined}
+                    max={MAX_SEED_USDC}
                     step={0.05}
                   />
                 </div>

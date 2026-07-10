@@ -7,7 +7,6 @@ import {console2} from "forge-std/console2.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {LeapToken} from "../src/LeapToken.sol";
 import {LeapBonding} from "../src/LeapBonding.sol";
-import {LeapBondingPlayground} from "../src/playground/LeapBondingPlayground.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
@@ -94,40 +93,28 @@ contract DeployHyperEVM is Script {
     }
 
     function _deploy() internal {
-        // PROTOCOL_PROFILE=playground（默认，低风险体验版）| production
-        bool isPlayground = _isPlayground();
-        LeapConfig.Params memory cfg = isPlayground ? LeapConfig.playground() : LeapConfig.production();
+        LeapConfig.Params memory cfg = LeapConfig.params();
 
         tokenImpl = new LeapToken();
-        // 体验版部署带「收尾赎回」的 LeapBondingPlayground；正式版用 LeapBonding，逻辑不受影响。
-        if (isPlayground) {
-            bonding = new LeapBondingPlayground(
-                usdc, address(tokenImpl), bounceGlobalStorage, cfg.virtualUsdc, cfg.virtualToken, cfg.graduationUsdc
-            );
-        } else {
-            bonding = new LeapBonding(
-                usdc, address(tokenImpl), bounceGlobalStorage, cfg.virtualUsdc, cfg.virtualToken, cfg.graduationUsdc
-            );
-        }
+        bonding = new LeapBonding(
+            usdc, address(tokenImpl), bounceGlobalStorage, cfg.virtualUsdc, cfg.virtualToken, cfg.graduationUsdc
+        );
         rewards = new LeapCreatorRewards(usdc);
         router = new LeapRouter(address(bonding));
         zap = new LeapZap(
-            usdc, address(bonding), address(rewards), cfg.minSeedUsdc, cfg.minUsdcAmount, cfg.maxUsdcPerTrade
+            usdc,
+            address(bonding),
+            address(rewards),
+            cfg.minSeedUsdc,
+            cfg.maxSeedUsdc,
+            cfg.minUsdcAmount,
+            cfg.maxUsdcPerTrade
         );
 
         bonding.setZap(address(zap));
         bonding.setRouter(address(router));
         rewards.setZap(address(zap));
-    }
-
-    function _isPlayground() internal view returns (bool) {
-        string memory name = vm.envOr("PROTOCOL_PROFILE", string("playground"));
-        if (keccak256(bytes(name)) == keccak256(bytes("production"))) {
-            console2.log("Protocol profile: production (LeapBonding)");
-            return false;
-        }
-        console2.log("Protocol profile: playground (LeapBondingPlayground)");
-        return true;
+        console2.log("Protocol params: 0 seed min, 20 USDC seed max, 1000 USDC graduation");
     }
 
     function _writeJson() internal {

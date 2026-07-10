@@ -18,9 +18,9 @@ import {LeapConfig} from "../src/LeapConfig.sol";
 import {IUniswapV2Pair} from "../src/external/univ2/IUniswapV2.sol";
 
 contract LeapProtocolTest is Test {
-    uint256 internal constant SEED_USDC = 20_000_000; // 20 USDC
-    uint256 internal constant BUY_USDC = 50_000_000; // 50 USDC
-    uint256 internal constant GRAD_BUY_USDC = 2_000_000_000; // 2000 USDC -> 触发毕业
+    uint256 internal constant SEED_USDC = 5_000_000; // 5 USDC
+    uint256 internal constant BUY_USDC = 1_000_000; // 1 USDC
+    uint256 internal constant GRAD_BUY_USDC = 10_000_000; // 10 USDC -> 触发毕业
 
     bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
@@ -52,8 +52,8 @@ contract LeapProtocolTest is Test {
         factory = new MockBounceFactory(lts, address(this));
         globalStorage = new MockGlobalStorage(address(factory));
 
-        // 本套用例覆盖大额买卖/毕业行为，使用 production 参数（20 seed / 1000 毕业 / 不封顶）。
-        LeapConfig.Params memory cfg = LeapConfig.production();
+        // 本套用例覆盖买卖/毕业行为，使用当前默认参数（0 seed / seed 最多 20 / 10 毕业 / 单笔不封顶）。
+        LeapConfig.Params memory cfg = LeapConfig.params();
         tokenImpl = new LeapToken();
         bonding = new LeapBonding(
             address(usdc),
@@ -66,7 +66,13 @@ contract LeapProtocolTest is Test {
         rewards = new LeapCreatorRewards(address(usdc));
         router = new LeapRouter(address(bonding));
         zap = new LeapZap(
-            address(usdc), address(bonding), address(rewards), cfg.minSeedUsdc, cfg.minUsdcAmount, cfg.maxUsdcPerTrade
+            address(usdc),
+            address(bonding),
+            address(rewards),
+            cfg.minSeedUsdc,
+            cfg.maxSeedUsdc,
+            cfg.minUsdcAmount,
+            cfg.maxUsdcPerTrade
         );
 
         bonding.setZap(address(zap));
@@ -153,13 +159,24 @@ contract LeapProtocolTest is Test {
         assertTrue(btcLt.isLong());
     }
 
-    function test_CreateToken_revertsBelowMinSeed() public {
+    function test_CreateToken_allowsZeroSeed() public {
+        ILeapTypes.LaunchParams memory params = _launchParams("Test Token", "TEST", vanitySalt);
+
+        vm.prank(creator);
+        address token = zap.createToken(params, 0);
+
+        assertTrue(bonding.isVanity(token));
+        assertEq(bonding.creatorOf(token), creator);
+        assertEq(IERC20(token).balanceOf(creator), 0);
+    }
+
+    function test_CreateToken_revertsAboveMaxSeed() public {
         ILeapTypes.LaunchParams memory params = _launchParams("Test Token", "TEST", vanitySalt);
 
         vm.startPrank(creator);
-        usdc.approve(address(zap), SEED_USDC);
-        vm.expectRevert(bytes("seed"));
-        zap.createToken(params, SEED_USDC - 1);
+        usdc.approve(address(zap), 21_000_000);
+        vm.expectRevert(bytes("max seed"));
+        zap.createToken(params, 21_000_000);
         vm.stopPrank();
     }
 
@@ -183,9 +200,9 @@ contract LeapProtocolTest is Test {
         address token = _createTokenAs(creator);
 
         vm.startPrank(trader);
-        usdc.approve(address(zap), 10_000_000);
+        usdc.approve(address(zap), 100);
         vm.expectRevert(bytes("min buy"));
-        zap.buy(token, 10_000_000 - 1, 0, address(0));
+        zap.buy(token, 99, 0, address(0));
         vm.stopPrank();
     }
 
@@ -356,14 +373,15 @@ contract LeapProtocolTest is Test {
     // --- zap constants ---
 
     function test_Zap_feeAndMinConstants() public view {
-        assertEq(zap.MIN_SEED_USDC(), 20_000_000);
-        assertEq(zap.MIN_USDC_AMOUNT(), 10_000_000);
+        assertEq(zap.MIN_SEED_USDC(), 0);
+        assertEq(zap.MAX_SEED_USDC(), 20_000_000);
+        assertEq(zap.MIN_USDC_AMOUNT(), 100);
         assertEq(zap.buyFeeBps(), 75);
         assertEq(zap.sellFeeBps(), 75);
         assertEq(zap.creatorFeeShareBps(), 6667);
         assertEq(zap.protocolTreasury(), 0x5945509FD601fB6b67bE2ff06ee72188057d45F3);
         assertEq(zap.MAX_USDC_PER_TRADE(), type(uint256).max);
-        assertEq(bonding.GRADUATION_USDC(), 1_000_000_000);
+        assertEq(bonding.GRADUATION_USDC(), 10_000_000);
         assertEq(bonding.VIRTUAL_USDC(), 3_000_000_000);
     }
 }

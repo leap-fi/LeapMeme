@@ -25,8 +25,9 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
         bytes32 s;
     }
 
-    /// @dev 经济参数部署时注入（见 LeapConfig）：Playground 与 Production 一处切换。
+    /// @dev 经济参数部署时注入（见 LeapConfig）。
     uint256 public immutable MIN_SEED_USDC; // createToken 最小 seed（0 = 不强制垫钱）
+    uint256 public immutable MAX_SEED_USDC; // createToken 最大 seed
     uint256 public immutable MIN_USDC_AMOUNT; // 单笔 buy 最小 USDC
     uint256 public immutable MAX_USDC_PER_TRADE; // 单笔 buy/sell USDC 上限（全生命周期），max = 不限
     /// @dev 总 swap 费 0.75%（对齐 Alt Fun / 前端报价）；在 Zap 层扣除，曲线与毕业后均适用。
@@ -49,14 +50,17 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
         address bonding_,
         address creatorRewards_,
         uint256 minSeedUsdc_,
+        uint256 maxSeedUsdc_,
         uint256 minUsdcAmount_,
         uint256 maxUsdcPerTrade_
     ) {
+        require(maxSeedUsdc_ >= minSeedUsdc_, "max seed<min");
         require(maxUsdcPerTrade_ >= minUsdcAmount_, "max<min");
         usdc = IERC20(usdc_);
         bonding = LeapBonding(bonding_);
         creatorRewards = LeapCreatorRewards(creatorRewards_);
         MIN_SEED_USDC = minSeedUsdc_;
+        MAX_SEED_USDC = maxSeedUsdc_;
         MIN_USDC_AMOUNT = minUsdcAmount_;
         MAX_USDC_PER_TRADE = maxUsdcPerTrade_;
     }
@@ -85,7 +89,7 @@ contract LeapZap is ILeapTypes, ReentrancyGuard {
         returns (address tokenAddr)
     {
         require(seedUsdcAmount >= MIN_SEED_USDC, "seed");
-        require(seedUsdcAmount <= MAX_USDC_PER_TRADE, "max seed");
+        require(seedUsdcAmount <= MAX_SEED_USDC, "max seed");
         if (seedUsdcAmount > 0) {
             usdc.safeTransferFrom(msg.sender, address(this), seedUsdcAmount);
             usdc.forceApprove(address(bonding), seedUsdcAmount);

@@ -24,7 +24,7 @@ export const CONTRACTS = {
     ALT_FUN_CONTRACTS.creatorRewards) as `0x${string}`,
 } as const
 
-/** 经济参数由 protocol-profile 单一入口驱动（playground / production 一处切换）。 */
+/** 经济参数由 protocol-profile 单一入口驱动，与 LeapConfig 对齐。 */
 export const MIN_BUY_USDC = PROTOCOL_PROFILE.minBuyUsdc
 export const MIN_SELL_USDC = PROTOCOL_PROFILE.minSellUsdc
 
@@ -36,8 +36,8 @@ export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as cons
 /** On-chain `LaunchParams.image` — default until custom uploads are wired. */
 export const DEFAULT_TOKEN_IMAGE = '/logo.svg'
 
-/** Matches `Zap.MIN_SEED_USDC`（Playground = 0，Production = 20）。 */
+/** Matches `Zap.MIN_SEED_USDC`（0 = 可不垫资发币）。 */
 export const MIN_SEED_USDC = PROTOCOL_PROFILE.minSeedUsdc
 
-/** Matches `Zap.MAX_USDC_PER_TRADE`（buy/sell 全生命周期上限）；0 = 不封顶。 */
-export const MAX_TRADE_USDC = PROTOCOL_PROFILE.maxTradeUsdc
+/** Matches `Zap.MAX_SEED_USDC`。 */
+export const MAX_SEED_USDC = PROTOCOL_PROFILE.maxSeedUsdc

@@ -1,10 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, Rocket, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, Rocket, Sparkles } from 'lucide-react'
 import { HeroBannerEffect } from '@/components/hero-banner-effect'
 import { useI18n } from '@/lib/i18n/context'
-import { IS_PLAYGROUND } from '@/lib/protocol-profile'
 
 export function HeroBanner() {
   const { t } = useI18n()
@@ -25,12 +24,6 @@ export function HeroBanner() {
                 {t('hero.badge')}
               </span>
             </span>
-            {IS_PLAYGROUND ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                <ShieldCheck className="h-3 w-3" />
-                {t('hero.playground')}
-              </span>
-            ) : null}
           </div>
           <h1 className="mb-1 text-2xl font-bold leading-tight text-foreground md:text-3xl">
             {t('hero.title.a')} <span className="text-primary">{t('hero.title.b')}</span>

@@ -10,7 +10,6 @@ import {MockBounceFactory} from "../src/mocks/MockBounceFactory.sol";
 import {MockGlobalStorage} from "../src/mocks/MockGlobalStorage.sol";
 import {LeapToken} from "../src/LeapToken.sol";
 import {LeapBonding} from "../src/LeapBonding.sol";
-import {LeapBondingPlayground} from "../src/playground/LeapBondingPlayground.sol";
 import {LeapRouter} from "../src/LeapRouter.sol";
 import {LeapZap} from "../src/LeapZap.sol";
 import {LeapCreatorRewards} from "../src/LeapCreatorRewards.sol";
@@ -64,10 +63,9 @@ contract DeployLocal is Script {
         factory = new MockBounceFactory(lts, msg.sender);
         globalStorage = new MockGlobalStorage(address(factory));
 
-        // 本地开发即低风险体验版：部署带「收尾赎回」的体验版 Bonding。
-        LeapConfig.Params memory cfg = LeapConfig.playground();
+        LeapConfig.Params memory cfg = LeapConfig.params();
         tokenImpl = new LeapToken();
-        bonding = new LeapBondingPlayground(
+        bonding = new LeapBonding(
             address(usdc),
             address(tokenImpl),
             address(globalStorage),
@@ -78,7 +76,13 @@ contract DeployLocal is Script {
         rewards = new LeapCreatorRewards(address(usdc));
         router = new LeapRouter(address(bonding));
         zap = new LeapZap(
-            address(usdc), address(bonding), address(rewards), cfg.minSeedUsdc, cfg.minUsdcAmount, cfg.maxUsdcPerTrade
+            address(usdc),
+            address(bonding),
+            address(rewards),
+            cfg.minSeedUsdc,
+            cfg.maxSeedUsdc,
+            cfg.minUsdcAmount,
+            cfg.maxUsdcPerTrade
         );
 
         bonding.setZap(address(zap));
@@ -132,6 +136,7 @@ contract DeployLocal is Script {
         console2.log("INDEXER_ENABLED=true");
         console2.log("CHAIN_RPC_URL=http://127.0.0.1:8545");
         console2.log("CHAIN_ID=31337");
+        console2.log("BONDING_CURVE_GRADUATION_TARGET_USD=10");
         console2.log("ZAP_ADDRESS=%s", address(zap));
         console2.log("BONDING_ADDRESS=%s", address(bonding));
         console2.log("ROUTER_ADDRESS=%s", address(router));

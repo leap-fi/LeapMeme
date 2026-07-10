@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getTokenTrades } from '@/lib/apis/meme-server/token-trades.api'
 import type { TokenTradeDto } from '@/lib/apis/meme-server/types'
 import type { Token } from '@/lib/mock-data'
@@ -15,6 +15,8 @@ interface TradeHistoryProps {
   /** Bump to reload once (e.g. after a successful trade). */
   refreshKey?: number
 }
+
+const TRADES_POLL_MS = 10_000
 
 type TradeRow = {
   id: string
@@ -118,6 +120,7 @@ export function TradeHistory({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const loadedOnceRef = useRef(false)
 
   const handleCopyAddress = async (tradeId: string, address: string) => {
     try {
@@ -129,39 +132,55 @@ export function TradeHistory({
     }
   }
 
-  useEffect(() => {
-    let disposed = false
-
-    async function loadTrades() {
+  const loadTrades = useCallback(async (silent = false) => {
+    const isFirstLoad = !loadedOnceRef.current
+    if (!silent && isFirstLoad) {
       setLoading(true)
       setError(null)
-      const address = contractAddressOverride?.trim() || token.contractAddress
-      if (!address) {
-        if (!disposed) {
-          setTradesApiData([])
-          setLoading(false)
-        }
-        return
-      }
-      try {
-        const response = await getTokenTrades({ address })
-        if (!disposed) setTradesApiData(response.data)
-      } catch (err) {
-        if (!disposed) {
-          setTradesApiData([])
-          setError(err instanceof Error ? err.message : 'Failed to load trades')
-        }
-      } finally {
-        if (!disposed) setLoading(false)
-      }
     }
 
-    void loadTrades()
-
-    return () => {
-      disposed = true
+    const address = contractAddressOverride?.trim() || token.contractAddress
+    if (!address) {
+      loadedOnceRef.current = false
+      setTradesApiData([])
+      setError(null)
+      setLoading(false)
+      return
     }
-  }, [contractAddressOverride, token.contractAddress, token.symbol, refreshKey])
+
+    try {
+      const response = await getTokenTrades({ address })
+      setTradesApiData(response.data)
+      setError(null)
+      loadedOnceRef.current = true
+    } catch (err) {
+      if (!loadedOnceRef.current) {
+        setTradesApiData([])
+        setError(err instanceof Error ? err.message : 'Failed to load trades')
+      }
+    } finally {
+      if (!silent && isFirstLoad) {
+        setLoading(false)
+      }
+    }
+  }, [contractAddressOverride, token.contractAddress])
+
+  const tradeAddress =
+    contractAddressOverride?.trim() || token.contractAddress?.trim() || ''
+
+  useEffect(() => {
+    loadedOnceRef.current = false
+    void loadTrades(false)
+    const timer = window.setInterval(() => {
+      void loadTrades(true)
+    }, TRADES_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [tradeAddress, loadTrades])
+
+  useEffect(() => {
+    if (refreshKey === 0) return
+    void loadTrades(true)
+  }, [refreshKey, loadTrades])
 
   const trades = useMemo(() => toTradeRows(tradesApiData), [tradesApiData])
   const tokenColumnLabel = token.symbol.trim().toUpperCase() || 'TOKEN'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Token } from '@/lib/mock-data'
 import { getTokenPositions } from '@/lib/apis/meme-server/token-positions.api'
 import type { UserPositionDto } from '@/lib/apis/meme-server/types'
@@ -15,6 +15,8 @@ interface TokenHoldersProps {
   totalSupply?: number | string | null
   tokenDecimals?: number | string | null
 }
+
+const HOLDERS_POLL_MS = 10_000
 
 function toNumber(value: number | string | null | undefined): number {
   if (value == null || value === '') return 0
@@ -84,41 +86,50 @@ export function TokenHolders({
   const [positions, setPositions] = useState<UserPositionDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadedOnceRef = useRef(false)
 
   const tokenAddress = contractAddressOverride?.trim() || token.contractAddress?.trim() || ''
   const decimals = resolveDecimals(tokenDecimals)
   const tokenColumnLabel = token.symbol.trim().toUpperCase() || 'TOKEN'
 
-  useEffect(() => {
-    let disposed = false
-    async function loadPositions() {
-      if (!tokenAddress) {
-        if (!disposed) {
-          setPositions([])
-          setLoading(false)
-          setError('Missing token address')
-        }
-        return
-      }
+  const loadPositions = useCallback(async (silent = false) => {
+    const isFirstLoad = !loadedOnceRef.current
+    if (!tokenAddress) {
+      loadedOnceRef.current = false
+      setPositions([])
+      setError('Missing token address')
+      setLoading(false)
+      return
+    }
+    if (!silent && isFirstLoad) {
       setLoading(true)
       setError(null)
-      try {
-        const data = await getTokenPositions(tokenAddress)
-        if (!disposed) setPositions(data)
-      } catch (err) {
-        if (!disposed) {
-          setPositions([])
-          setError(err instanceof Error ? err.message : 'Failed to load holders')
-        }
-      } finally {
-        if (!disposed) setLoading(false)
+    }
+    try {
+      const data = await getTokenPositions(tokenAddress)
+      setPositions(data)
+      setError(null)
+      loadedOnceRef.current = true
+    } catch (err) {
+      if (!loadedOnceRef.current) {
+        setPositions([])
+        setError(err instanceof Error ? err.message : 'Failed to load holders')
+      }
+    } finally {
+      if (!silent && isFirstLoad) {
+        setLoading(false)
       }
     }
-    void loadPositions()
-    return () => {
-      disposed = true
-    }
   }, [tokenAddress])
+
+  useEffect(() => {
+    loadedOnceRef.current = false
+    void loadPositions(false)
+    const timer = window.setInterval(() => {
+      void loadPositions(true)
+    }, HOLDERS_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [loadPositions])
 
   const { holders, holderCount, maxSupplyPercent } = useMemo(() => {
     const normalized = positions

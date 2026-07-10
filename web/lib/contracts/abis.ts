@@ -155,6 +155,13 @@ export const zapAbi = [
   },
   {
     type: 'function',
+    name: 'MAX_SEED_USDC',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
     name: 'createToken',
     stateMutability: 'nonpayable',
     inputs: [
@@ -272,48 +279,6 @@ export const bondingAbi = [
       { name: 'token', type: 'address', indexed: true },
       { name: 'oldCreator', type: 'address', indexed: true },
       { name: 'newCreator', type: 'address', indexed: true },
-    ],
-  },
-] as const
-
-/** 体验版（Playground）Bonding 扩展：收尾赎回锁定 LP。正式版合约不含这些方法。 */
-export const bondingPlaygroundAbi = [
-  {
-    type: 'function',
-    name: 'canUnwind',
-    stateMutability: 'view',
-    inputs: [{ name: 'token', type: 'address' }],
-    outputs: [{ type: 'bool' }],
-  },
-  {
-    type: 'function',
-    name: 'unwound',
-    stateMutability: 'view',
-    inputs: [{ name: 'token', type: 'address' }],
-    outputs: [{ type: 'bool' }],
-  },
-  {
-    type: 'function',
-    name: 'circulatingMeme',
-    stateMutability: 'view',
-    inputs: [{ name: 'token', type: 'address' }],
-    outputs: [{ type: 'uint256' }],
-  },
-  {
-    type: 'function',
-    name: 'playgroundUnwind',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'token', type: 'address' }],
-    outputs: [{ name: 'usdcOut', type: 'uint256' }],
-  },
-  {
-    type: 'event',
-    name: 'PlaygroundUnwound',
-    inputs: [
-      { name: 'token', type: 'address', indexed: true },
-      { name: 'to', type: 'address', indexed: true },
-      { name: 'usdcOut', type: 'uint256', indexed: false },
-      { name: 'memeReclaimed', type: 'uint256', indexed: false },
     ],
   },
 ] as const

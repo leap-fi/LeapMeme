@@ -10,7 +10,7 @@ import { useZapTrade } from '@/hooks/use-zap-trade'
 import { resolveTokenAddress } from '@/lib/contracts/token-address'
 import { CONTRACTS } from '@/lib/contracts/config'
 import type { TradeContracts } from '@/lib/contracts/trade-quote'
-import { MAX_TRADE_USDC, MIN_BUY_USDC, MIN_SELL_USDC } from '@/lib/contracts/config'
+import { MIN_BUY_USDC, MIN_SELL_USDC } from '@/lib/contracts/config'
 import { hyperEvm } from '@/lib/contracts/chain'
 import { cn } from '@/lib/utils'
 
@@ -143,12 +143,8 @@ export function TradePanel({
   const minHint =
     mode === 'buy'
       ? `Minimum ${MIN_BUY_USDC} USDC`
-      : MIN_SELL_USDC > 0
-        ? `Estimated minimum ${MIN_SELL_USDC} USDC`
-        : ''
-  const amountHint = [minHint, MAX_TRADE_USDC > 0 ? `Max ${MAX_TRADE_USDC} USDC per trade` : '']
-    .filter(Boolean)
-    .join(' · ')
+      : ''
+  const amountHint = minHint
 
   const isGraduating = tokenStatus?.isGraduating
   const noContract = !tokenAddress
@@ -171,18 +167,7 @@ export function TradePanel({
     Number.isFinite(estimatedReceiveOut) &&
     estimatedReceiveOut > 0
 
-  const isBelowMinimum =
-    mode === 'buy'
-      ? hasValidAmount && amountNum < MIN_BUY_USDC
-      : hasValidAmount && hasQuoteReady && MIN_SELL_USDC > 0 && estimatedReceiveOut < MIN_SELL_USDC
-
-  // 体验版：单笔 USDC 上限（买入按输入、卖出按预估产出）。0 = 不封顶。
-  const isAboveMaximum =
-    MAX_TRADE_USDC > 0 &&
-    (mode === 'buy'
-      ? hasValidAmount && amountNum > MAX_TRADE_USDC
-      : hasValidAmount && hasQuoteReady && estimatedReceiveOut > MAX_TRADE_USDC)
-  const maxHint = `Max ${MAX_TRADE_USDC} USDC per trade`
+  const isBelowMinimum = mode === 'buy' ? hasValidAmount && amountNum < MIN_BUY_USDC : false
 
   const buttonLabel = (() => {
     if (noContract) return 'Contract address not configured'
@@ -194,7 +179,6 @@ export function TradePanel({
       return mode === 'buy' ? 'INSUFFICIENT USDC BALANCE' : 'INSUFFICIENT TOKEN BALANCE'
     }
     if (isBelowMinimum) return minHint.toUpperCase()
-    if (isAboveMaximum) return maxHint.toUpperCase()
     if (isGraduating) return 'GRADUATING…'
     if (isBusy) {
       return 'CONFIRM IN WALLET…'
@@ -212,7 +196,6 @@ export function TradePanel({
     (hasValidAmount && !hasQuoteReady) ||
     hasInsufficientBalance ||
     isBelowMinimum ||
-    isAboveMaximum ||
     (isWalletReady && txState.status === 'success')
 
   const isPending = txState.status === 'trading'
