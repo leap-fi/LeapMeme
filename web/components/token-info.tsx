@@ -19,6 +19,7 @@ import { BondingCurveProgressSection } from '@/components/bonding-curve-volume-b
 import { KlineChart } from '@/lib/tradingview'
 import { formatShortAddress } from '@/lib/utils'
 import { Check, Copy, ExternalLink } from 'lucide-react'
+import { useI18n } from '@/lib/i18n/context'
 
 interface TokenInfoProps {
   token: Token
@@ -133,20 +134,21 @@ function EmbeddedStatsRow({
     volume24hRaw: number
   }
 }) {
+  const { t } = useI18n()
   return (
     <div className="flex h-10 items-center gap-x-4 text-xs">
       <div
         className="flex min-w-0 flex-1 items-center gap-1.5"
         title={formatUsdFixed2(display.marketCapRaw)}
       >
-        <span className="shrink-0 text-muted-foreground">Market Cap</span>
+        <span className="shrink-0 text-muted-foreground">{t('coin.info.marketCap')}</span>
         <span className="truncate font-semibold text-foreground">{display.marketCap}</span>
       </div>
       <div
         className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-right"
         title={formatUsdFixed2(display.volume24hRaw)}
       >
-        <span className="shrink-0 text-muted-foreground">24H Volume</span>
+        <span className="shrink-0 text-muted-foreground">{t('coin.info.volume24h')}</span>
         <span className="truncate font-semibold text-foreground">{display.volume24h}</span>
       </div>
     </div>
@@ -161,6 +163,7 @@ export function TokenInfo({
   embedded,
   withChart,
 }: TokenInfoProps) {
+  const { t } = useI18n()
   const marketsContext = useMarketsContextOptional()
   const marketIconBySymbol = useMemo(() => {
     const map = new Map<string, string>()
@@ -277,7 +280,7 @@ export function TokenInfo({
       <EmbeddedStatsRow display={display} />
 
       <div className="flex h-10 items-center gap-1.5 text-xs">
-        <span className="shrink-0 text-[11px] text-muted-foreground">Contract</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">{t('coin.info.contract')}</span>
         <code
           className="min-w-0 flex-1 truncate font-mono text-xs text-foreground"
           title={contractAddress}
@@ -288,7 +291,7 @@ export function TokenInfo({
           type="button"
           onClick={copyAddress}
           className="shrink-0 rounded p-1 hover:bg-muted transition-colors"
-          title="Copy address"
+          title={t('coin.info.copyAddress')}
         >
           {copied ? (
             <Check className="h-3.5 w-3.5 text-primary" />
@@ -301,7 +304,7 @@ export function TokenInfo({
           target="_blank"
           rel="noopener noreferrer"
           className="shrink-0 rounded p-1 hover:bg-muted transition-colors"
-          title="View on explorer"
+          title={t('coin.info.viewExplorer')}
         >
           <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
         </a>
@@ -320,11 +323,11 @@ export function TokenInfo({
 
   return (
     <div className="bg-card rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-foreground mb-4">Token Info</h3>
+      <h3 className="text-lg font-semibold text-foreground mb-4">{t('coin.info.title')}</h3>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-secondary rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Market Cap</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('coin.info.marketCap')}</p>
           <p
             className="text-lg font-bold text-foreground truncate"
             title={formatUsdFixed2(display.marketCapRaw)}
@@ -333,21 +336,21 @@ export function TokenInfo({
           </p>
         </div>
         <div className="bg-secondary rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">24H Volume</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('coin.info.volume24h')}</p>
           <p className="text-lg font-bold text-foreground" title={formatUsdFixed2(display.volume24hRaw)}>
             {display.volume24h}
           </p>
         </div>
         <div className="bg-secondary rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Leverage</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('coin.info.leverage')}</p>
           <p className="text-lg font-bold text-foreground" title={`${display.leverageRaw}x`}>
             {display.leverage}
           </p>
         </div>
         <div className="bg-secondary rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Direction</p>
+          <p className="text-xs text-muted-foreground mb-1">{t('coin.info.direction')}</p>
           <p className={`text-lg font-bold ${display.direction === 'Long' ? 'text-primary' : 'text-destructive'}`}>
-            {display.direction}
+            {display.direction === 'Long' ? t('coin.direction.long') : t('coin.direction.short')}
           </p>
         </div>
       </div>
@@ -365,7 +368,7 @@ export function TokenInfo({
               )}
             </div>
             <div className="min-w-0">
-            <p className="text-xs text-muted-foreground mb-1">Underlying Asset</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('coin.info.underlying')}</p>
             <p className="text-lg font-bold text-foreground">{display.underlying}</p>
             </div>
           </div>
@@ -395,7 +398,7 @@ export function TokenInfo({
 
       {/* Contract Address */}
       <div className="bg-secondary rounded-lg p-4">
-        <p className="text-xs text-muted-foreground mb-2">Contract Address</p>
+        <p className="text-xs text-muted-foreground mb-2">{t('coin.info.contractAddress')}</p>
         <div className="flex items-center gap-2">
           <code
             className="text-xs text-foreground font-mono flex-1 truncate"
@@ -407,7 +410,7 @@ export function TokenInfo({
             type="button"
             onClick={copyAddress}
             className="p-2 hover:bg-muted rounded transition-colors"
-            title="Copy address"
+            title={t('coin.info.copyAddress')}
           >
             {copied ? (
               <Check className="w-4 h-4 text-primary" />
@@ -420,7 +423,7 @@ export function TokenInfo({
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 hover:bg-muted rounded transition-colors"
-            title="View on explorer"
+            title={t('coin.info.viewExplorer')}
           >
             <ExternalLink className="w-4 h-4 text-muted-foreground" />
           </a>

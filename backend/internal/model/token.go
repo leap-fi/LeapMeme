@@ -113,6 +113,17 @@ func ListTradeTokenAddressesMissing() ([]string, error) {
 	return addresses, nil
 }
 
+func UpdateTokenCreator(address, creator string) error {
+	address = strings.ToLower(strings.TrimSpace(address))
+	creator = strings.ToLower(strings.TrimSpace(creator))
+	if address == "" || creator == "" {
+		return errors.New("address and creator required")
+	}
+	return DB.Model(&Token{}).
+		Where("LOWER(address) = ?", address).
+		Update("creator", creator).Error
+}
+
 func GetTokensByCreator(creator string) ([]Token, error) {
 	creator = strings.TrimSpace(creator)
 	if creator == "" {
@@ -126,6 +137,15 @@ func GetTokensByCreator(creator string) ([]Token, error) {
 		return nil, err
 	}
 	return tokens, nil
+}
+
+func ListAllTokenAddresses() ([]string, error) {
+	var addresses []string
+	err := DB.Model(&Token{}).Pluck("address", &addresses).Error
+	if err != nil {
+		return nil, err
+	}
+	return addresses, nil
 }
 
 func ListTokens(filter TokenListFilter) ([]Token, error) {

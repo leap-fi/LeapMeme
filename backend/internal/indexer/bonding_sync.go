@@ -36,3 +36,30 @@ func SyncTokenBondingCurve(ctx context.Context, address string) error {
 	scanner.refreshTokenMarketFields(ctx, token, ethcommon.HexToAddress(address))
 	return model.UpsertToken(token)
 }
+
+// SyncTokenCreatorFromChain refreshes tokens.creator from on-chain creatorOf.
+func SyncTokenCreatorFromChain(ctx context.Context, address string) error {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return nil
+	}
+
+	cfg := LoadConfig()
+	if !cfg.Enabled() || cfg.BondingAddress == "" {
+		return nil
+	}
+
+	token, err := model.GetTokenByAddress(address)
+	if err != nil || token == nil {
+		return err
+	}
+
+	scanner, err := NewScanner(cfg)
+	if err != nil {
+		return err
+	}
+	defer scanner.Close()
+
+	scanner.syncCreatorFromChain(ctx, token, ethcommon.HexToAddress(address))
+	return model.UpsertToken(token)
+}

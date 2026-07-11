@@ -210,15 +210,22 @@ export async function quoteBuy(
   const gross = parseUnits(usdcAmount, USDC_DECIMALS)
   if (gross <= BigInt(0)) return null
 
-  const [graduated, { buyFeeBps }] = await Promise.all([
+  const [graduated, withdrawn, { buyFeeBps }] = await Promise.all([
     publicClient.readContract({
       address: contracts.bonding,
       abi: bondingAbi,
       functionName: 'isGraduated',
       args: [tokenAddress],
     }),
+    publicClient.readContract({
+      address: contracts.bonding,
+      abi: bondingAbi,
+      functionName: 'liquidityWithdrawn',
+      args: [tokenAddress],
+    }),
     readFees(contracts),
   ])
+  if (withdrawn) return null
   const netUsdc = gross - (gross * buyFeeBps) / BPS
   if (netUsdc <= BigInt(0)) return null
 
@@ -251,15 +258,22 @@ export async function quoteSell(
   const amountIn = parseUnits(tokenAmount, TOKEN_DECIMALS)
   if (amountIn <= BigInt(0)) return null
 
-  const [graduated, { sellFeeBps }] = await Promise.all([
+  const [graduated, withdrawn, { sellFeeBps }] = await Promise.all([
     publicClient.readContract({
       address: contracts.bonding,
       abi: bondingAbi,
       functionName: 'isGraduated',
       args: [tokenAddress],
     }),
+    publicClient.readContract({
+      address: contracts.bonding,
+      abi: bondingAbi,
+      functionName: 'liquidityWithdrawn',
+      args: [tokenAddress],
+    }),
     readFees(contracts),
   ])
+  if (withdrawn) return null
 
   if (graduated) {
     return quoteGraduatedSell(tokenAddress, amountIn, contracts, sellFeeBps)
@@ -287,56 +301,84 @@ export async function readTokenStatus(
   tokenAddress: `0x${string}`,
   contracts: TradeContracts = CONTRACTS,
 ) {
-  const [creator, isGraduating, isGraduated, isTrading] = await Promise.all([
-    publicClient.readContract({
-      address: contracts.bonding,
-      abi: bondingAbi,
-      functionName: 'creatorOf',
-      args: [tokenAddress],
-    }),
-    publicClient.readContract({
-      address: contracts.bonding,
-      abi: bondingAbi,
-      functionName: 'isGraduating',
-      args: [tokenAddress],
-    }),
-    publicClient.readContract({
-      address: contracts.bonding,
-      abi: bondingAbi,
-      functionName: 'isGraduated',
-      args: [tokenAddress],
-    }),
-    publicClient.readContract({
-      address: contracts.bonding,
-      abi: bondingAbi,
-      functionName: 'isTrading',
-      args: [tokenAddress],
-    }),
-  ])
+  const [creator, isGraduating, isGraduated, isTrading, liquidityWithdrawn] =
+    await Promise.all([
+      publicClient.readContract({
+        address: contracts.bonding,
+        abi: bondingAbi,
+        functionName: 'creatorOf',
+        args: [tokenAddress],
+      }),
+      publicClient.readContract({
+        address: contracts.bonding,
+        abi: bondingAbi,
+        functionName: 'isGraduating',
+        args: [tokenAddress],
+      }),
+      publicClient.readContract({
+        address: contracts.bonding,
+        abi: bondingAbi,
+        functionName: 'isGraduated',
+        args: [tokenAddress],
+      }),
+      publicClient.readContract({
+        address: contracts.bonding,
+        abi: bondingAbi,
+        functionName: 'isTrading',
+        args: [tokenAddress],
+      }),
+      publicClient.readContract({
+        address: contracts.bonding,
+        abi: bondingAbi,
+        functionName: 'liquidityWithdrawn',
+        args: [tokenAddress],
+      }),
+    ])
 
   const exists = creator !== ZERO_ADDRESS
-  return { exists, isGraduating, isGraduated, isTrading }
+  // Graduated tokens still trade on DEX until creator withdraws locked LP.
+  const tradeDisabled = Boolean(liquidityWithdrawn)
+  return {
+    exists,
+    isGraduating,
+    isGraduated,
+    isTrading,
+    liquidityWithdrawn: Boolean(liquidityWithdrawn),
+    tradeDisabled,
+  }
 }
 
 export async function readBalances(
   walletAddress: `0x${string}`,
-  tokenAddress: `0x${string}`,
+  tokenAddress: `0x${string}` | null,
   contracts: TradeContracts = CONTRACTS,
 ) {
-  const [usdcBalance, tokenBalance] = await Promise.all([
-    publicClient.readContract({
+  let usdcBalance = 0n
+  let tokenBalance = 0n
+
+  try {
+    usdcBalance = await publicClient.readContract({
       address: contracts.usdc,
       abi: erc20Abi,
       functionName: 'balanceOf',
       args: [walletAddress],
-    }),
-    publicClient.readContract({
-      address: tokenAddress,
-      abi: erc20Abi,
-      functionName: 'balanceOf',
-      args: [walletAddress],
-    }),
-  ])
+    })
+  } catch {
+    // USDC read failed (RPC / wrong contract address)
+  }
+
+  if (tokenAddress) {
+    try {
+      tokenBalance = await publicClient.readContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [walletAddress],
+      })
+    } catch {
+      // Meme token may be missing after Anvil reset while DB still lists it
+    }
+  }
 
   return {
     usdc: formatUnits(usdcBalance, USDC_DECIMALS),

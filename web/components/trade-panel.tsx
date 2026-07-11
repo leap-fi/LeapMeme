@@ -12,6 +12,7 @@ import { CONTRACTS } from '@/lib/contracts/config'
 import type { TradeContracts } from '@/lib/contracts/trade-quote'
 import { useProtocolConfig } from '@/contexts/protocol-context'
 import { hyperEvm } from '@/lib/contracts/chain'
+import { useI18n } from '@/lib/i18n/context'
 import { cn } from '@/lib/utils'
 
 interface TradePanelProps {
@@ -30,6 +31,14 @@ interface TradePanelProps {
 }
 
 const TX_MODAL_AUTO_CLOSE_SEC = 10
+
+type TradeSnapshot = {
+  amount: string
+  payLabel: string
+  estimatedReceive: string
+  slippage: string
+  feePercent: string | null
+}
 
 function formatAmount(value: string, maxDecimals = 4) {
   const n = Number.parseFloat(value)
@@ -71,6 +80,7 @@ export function TradePanel({
   glass,
   onTradeSuccess,
 }: TradePanelProps) {
+  const { t } = useI18n()
   const { config } = useProtocolConfig()
   const [mode, setMode] = useState<'buy' | 'sell'>('buy')
   const [amount, setAmount] = useState('')
@@ -79,6 +89,7 @@ export function TradePanel({
   const [showTxModal, setShowTxModal] = useState(false)
   const [portalReady, setPortalReady] = useState(false)
   const [closeCountdown, setCloseCountdown] = useState(TX_MODAL_AUTO_CLOSE_SEC)
+  const [tradeSnapshot, setTradeSnapshot] = useState<TradeSnapshot | null>(null)
 
   useEffect(() => {
     setPortalReady(true)
@@ -128,6 +139,17 @@ export function TradePanel({
 
   const handleTrade = async () => {
     resetTx()
+    if (amount && quote) {
+      const snapshotPayLabel = mode === 'buy' ? 'USDC' : token.symbol
+      const snapshotReceiveLabel = mode === 'buy' ? token.symbol : 'USDC'
+      setTradeSnapshot({
+        amount,
+        payLabel: snapshotPayLabel,
+        estimatedReceive: `${formatAmount(quote.estimatedOut)} ${snapshotReceiveLabel}`,
+        slippage,
+        feePercent: quote.feePercent != null ? String(quote.feePercent) : null,
+      })
+    }
     try {
       await executeTrade()
     } catch {
@@ -141,13 +163,17 @@ export function TradePanel({
     }
   }, [txState.status])
 
+  const modeLabel = mode === 'buy' ? t('coin.trade.buy') : t('coin.trade.sell')
+  const directionLabel =
+    token.direction === 'Long' ? t('coin.direction.long') : t('coin.direction.short')
   const minHint =
     mode === 'buy'
-      ? `Minimum ${config.minBuyUsdc} USDC`
+      ? t('coin.trade.minBuy').replace('{amount}', String(config.minBuyUsdc))
       : ''
   const amountHint = minHint
 
   const isGraduating = tokenStatus?.isGraduating
+  const isVoided = Boolean(tokenStatus?.tradeDisabled)
   const noContract = !tokenAddress
   const amountNum = Number.parseFloat(amount)
   const usdcBalanceNum = Number.parseFloat(balances.usdc)
@@ -171,25 +197,29 @@ export function TradePanel({
   const isBelowMinimum = mode === 'buy' ? hasValidAmount && amountNum < config.minBuyUsdc : false
 
   const buttonLabel = (() => {
-    if (noContract) return 'Contract address not configured'
-    if (needsReconnect) return `RECONNECT WALLET TO ${mode.toUpperCase()}`
-    if (!isWalletReady) return `CONNECT WALLET TO ${mode.toUpperCase()}`
-    if (hasValidAmount && quoteLoading) return 'LOADING QUOTE…'
-    if (hasValidAmount && !hasQuoteReady) return 'QUOTE UNAVAILABLE'
+    if (noContract) return t('coin.trade.btn.noContract')
+    if (isVoided) return t('coin.trade.btn.voided')
+    if (needsReconnect) return t('coin.trade.btn.reconnect').replace('{mode}', modeLabel)
+    if (!isWalletReady) return t('coin.trade.btn.connect').replace('{mode}', modeLabel)
+    if (hasValidAmount && quoteLoading) return t('coin.trade.btn.loadingQuote')
+    if (hasValidAmount && !hasQuoteReady) return t('coin.trade.btn.quoteUnavailable')
     if (hasInsufficientBalance) {
-      return mode === 'buy' ? 'INSUFFICIENT USDC BALANCE' : 'INSUFFICIENT TOKEN BALANCE'
+      return mode === 'buy'
+        ? t('coin.trade.btn.insufficientUsdc')
+        : t('coin.trade.btn.insufficientToken')
     }
-    if (isBelowMinimum) return minHint.toUpperCase()
-    if (isGraduating) return 'GRADUATING…'
+    if (isBelowMinimum) return minHint
+    if (isGraduating) return t('coin.trade.btn.graduating')
     if (isBusy) {
-      return 'CONFIRM IN WALLET…'
+      return t('coin.trade.btn.confirmWallet')
     }
-    if (txState.status === 'success') return 'TRADE SUCCESS'
-    return mode === 'buy' ? 'BUY' : 'SELL'
+    if (txState.status === 'success') return t('coin.trade.btn.success')
+    return modeLabel
   })()
 
   const buttonDisabled =
     noContract ||
+    isVoided ||
     isGraduating ||
     isBusy ||
     !amount ||
@@ -205,21 +235,19 @@ export function TradePanel({
   const estimatedReceive = quote
     ? `${formatAmount(quote.estimatedOut)} ${receiveLabel}`
     : '—'
-  const simulationStepLabel =
-    simulationState.status === 'idle'
-      ? '—'
-      : simulationState.step === 'permit'
-        ? 'Sign permit'
-        : simulationState.step === 'approve'
-          ? 'Approve'
-          : simulationState.step === 'buy'
-            ? 'Buy'
-            : 'Sell'
+  const modalTradeDetails = tradeSnapshot ?? {
+    amount,
+    payLabel,
+    estimatedReceive,
+    slippage,
+    feePercent: quote?.feePercent != null ? String(quote.feePercent) : null,
+  }
 
   const closeTxModal = () => {
     if (isPending) return
     setShowTxModal(false)
     setCloseCountdown(TX_MODAL_AUTO_CLOSE_SEC)
+    setTradeSnapshot(null)
     resetTx()
   }
 
@@ -229,6 +257,7 @@ export function TradePanel({
     const hash = txState.hash
     if (!hash || lastSuccessHashRef.current === hash) return
     lastSuccessHashRef.current = hash
+    setAmount('')
     onTradeSuccess?.()
   }, [txState, onTradeSuccess])
 
@@ -247,6 +276,7 @@ export function TradePanel({
         clearInterval(timer)
         setShowTxModal(false)
         setCloseCountdown(TX_MODAL_AUTO_CLOSE_SEC)
+        setTradeSnapshot(null)
         resetTx()
         return
       }
@@ -273,6 +303,7 @@ export function TradePanel({
           onClick={() => {
             setMode('buy')
             setAmount('')
+            setTradeSnapshot(null)
             resetTx()
           }}
           className={`flex-1 py-3 text-sm font-semibold rounded-lg transition-colors ${
@@ -281,13 +312,14 @@ export function TradePanel({
               : 'bg-secondary text-muted-foreground hover:text-foreground'
           }`}
         >
-          BUY
+          {t('coin.trade.buy')}
         </button>
         <button
           type="button"
           onClick={() => {
             setMode('sell')
             setAmount('')
+            setTradeSnapshot(null)
             resetTx()
           }}
           className={`flex-1 py-3 text-sm font-semibold rounded-lg transition-colors ${
@@ -296,7 +328,7 @@ export function TradePanel({
               : 'bg-secondary text-muted-foreground hover:text-foreground'
           }`}
         >
-          SELL
+          {t('coin.trade.sell')}
         </button>
         <button
           type="button"
@@ -314,7 +346,7 @@ export function TradePanel({
           }`}
         >
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-semibold text-foreground">Settings</span>
+            <span className="text-sm font-semibold text-foreground">{t('coin.trade.settings')}</span>
             <button
               type="button"
               onClick={() => setShowSettings(false)}
@@ -326,7 +358,7 @@ export function TradePanel({
 
           <div className="mb-3">
             <label className="text-xs text-muted-foreground mb-2 block tracking-wide">
-              MAX SLIPPAGE (%)
+              {t('coin.trade.maxSlippage')}
             </label>
             <div className="relative">
               <input
@@ -340,7 +372,7 @@ export function TradePanel({
           </div>
 
           <p className="text-xs text-muted-foreground mb-4">
-            Maximum price change you&apos;re willing to accept when placing trades.
+            {t('coin.trade.slippageHint')}
           </p>
 
           <div className="flex gap-2">
@@ -364,26 +396,34 @@ export function TradePanel({
 
       {noContract && (
         <p className="text-xs text-amber-500/90 mb-4 rounded-lg bg-amber-500/10 px-3 py-2">
-          Configure <code className="font-mono">contractAddress</code> for this token, or add{' '}
-          <code className="font-mono">?address=0x…</code> to the URL to enable on-chain trading.
+          {t('coin.trade.noContract')}
+        </p>
+      )}
+
+      {isVoided && (
+        <p className="text-xs text-destructive mb-4 rounded-lg bg-destructive/10 px-3 py-2">
+          {t('coin.trade.voided')}
         </p>
       )}
 
       {isGraduating && (
         <p className="text-xs text-primary mb-4 rounded-lg bg-primary/10 px-3 py-2">
-          This token is graduating and liquidity is migrating. Please try again shortly.
+          {t('coin.trade.graduating')}
         </p>
       )}
 
-      {tokenStatus?.isGraduated && !isGraduating && (
+      {tokenStatus?.isGraduated && !isGraduating && !isVoided && (
         <p className="text-xs text-muted-foreground mb-4">
-          This token has graduated to DEX liquidity. Quotes reflect the current pool price.
+          {t('coin.trade.graduatedDex')}
         </p>
       )}
 
       <div className="mb-4">
         <label className="text-sm text-muted-foreground mb-2 block">
-          Amount ({mode === 'buy' ? 'USDC' : token.symbol})
+          {t('coin.trade.amount').replace(
+            '{asset}',
+            mode === 'buy' ? 'USDC' : token.symbol,
+          )}
         </label>
         <input
           type="text"
@@ -414,7 +454,7 @@ export function TradePanel({
 
       <div className="space-y-3 mb-6 text-sm">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">You receive (est.)</span>
+          <span className="text-muted-foreground">{t('coin.trade.youReceive')}</span>
           <span className="text-foreground flex items-center gap-1">
             {quoteLoading && <Loader2 className="w-3 h-3 animate-spin" />}
             {quote
@@ -424,26 +464,26 @@ export function TradePanel({
         </div>
         {quote && (
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Protocol fee (est.)</span>
+            <span className="text-muted-foreground">{t('coin.trade.protocolFeeEst')}</span>
             <span className="text-foreground">{quote.feePercent}%</span>
           </div>
         )}
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Underlying</span>
+          <span className="text-muted-foreground">{t('coin.trade.underlying')}</span>
           <span className="text-foreground">{token.underlying}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Leverage</span>
+          <span className="text-muted-foreground">{t('coin.trade.leverage')}</span>
           <span className="text-foreground">{token.leverage}x</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Direction</span>
+          <span className="text-muted-foreground">{t('coin.trade.direction')}</span>
           <span className={token.direction === 'Long' ? 'text-primary' : 'text-destructive'}>
-            {token.direction}
+            {directionLabel}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Max Slippage</span>
+          <span className="text-muted-foreground">{t('coin.trade.maxSlippageLabel')}</span>
           <span className="text-foreground">{slippage}%</span>
         </div>
       </div>
@@ -479,23 +519,23 @@ export function TradePanel({
 
       <div className="mt-4 pt-4 border-t border-border">
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Your Balance</span>
+          <span className="text-muted-foreground">{t('coin.trade.yourBalance')}</span>
           <span className="text-foreground">
             {formatAmount(balances.token)} {token.symbol}
           </span>
         </div>
         <div className="flex justify-between text-sm mt-2">
-          <span className="text-muted-foreground">USDC Balance</span>
+          <span className="text-muted-foreground">{t('coin.trade.usdcBalance')}</span>
           <span className="text-foreground">{formatAmount(balances.usdc)} USDC</span>
         </div>
       </div>
 
       <p className="text-[10px] text-muted-foreground mt-4 text-center">
-        Trades route through{' '}
+        {t('coin.trade.footer.lead')}{' '}
         <Link href="https://docs.leap.fun/integrations" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
           Zap
         </Link>{' '}
-        on HyperEVM
+        {t('coin.trade.footer.tail')}
       </p>
     </div>
 
@@ -508,14 +548,14 @@ export function TradePanel({
             <div className="mb-3 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {mode === 'buy' ? 'Buy Order' : 'Sell Order'}
+                  {mode === 'buy' ? t('coin.trade.modal.buyOrder') : t('coin.trade.modal.sellOrder')}
                 </p>
                 <h3 className="mt-1 text-lg font-semibold text-foreground">
                   {isPending
-                    ? 'Transaction In Progress'
+                    ? t('coin.trade.modal.inProgress')
                     : txState.status === 'success'
-                      ? 'Transaction Successful'
-                      : 'Transaction Failed'}
+                      ? t('coin.trade.modal.success')
+                      : t('coin.trade.modal.failed')}
                 </h3>
               </div>
               <button
@@ -537,7 +577,7 @@ export function TradePanel({
                       <span className="absolute inline-flex h-6 w-6 rounded-full bg-primary/20" />
                       <Loader2 className="relative h-4 w-4 animate-spin text-primary" />
                     </div>
-                    <p>Confirm the transaction in your wallet...</p>
+                    <p>{t('coin.trade.modal.confirmWallet')}</p>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
@@ -553,42 +593,44 @@ export function TradePanel({
               {txState.status === 'success' && (
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="h-5 w-5 animate-bounce text-primary" />
-                  <p className="text-primary">Transaction completed and confirmed on-chain.</p>
+                  <p className="text-primary">{t('coin.trade.modal.completed')}</p>
                 </div>
               )}
             </div>
 
             <div className="mb-4 space-y-2 rounded-lg border border-border bg-secondary/30 p-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Side</span>
+                <span className="text-muted-foreground">{t('coin.trade.modal.side')}</span>
                 <span className={mode === 'buy' ? 'text-primary font-semibold' : 'text-destructive font-semibold'}>
-                  {mode === 'buy' ? 'Buy' : 'Sell'}
+                  {mode === 'buy' ? t('coin.trade.side.buy') : t('coin.trade.side.sell')}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Token</span>
+                <span className="text-muted-foreground">{t('coin.trade.modal.token')}</span>
                 <span className="text-foreground">{token.symbol}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Input Amount</span>
+                <span className="text-muted-foreground">{t('coin.trade.modal.inputAmount')}</span>
                 <span className="text-foreground">
-                  {amount || '—'} {payLabel}
+                  {modalTradeDetails.amount || '—'} {modalTradeDetails.payLabel}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Estimated Receive</span>
-                <span className="text-foreground">{estimatedReceive}</span>
+                <span className="text-muted-foreground">{t('coin.trade.modal.estimatedReceive')}</span>
+                <span className="text-foreground">{modalTradeDetails.estimatedReceive}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Max Slippage</span>
-                <span className="text-foreground">{slippage}%</span>
+                <span className="text-muted-foreground">{t('coin.trade.maxSlippageLabel')}</span>
+                <span className="text-foreground">{modalTradeDetails.slippage}%</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Protocol Fee</span>
-                <span className="text-foreground">{quote ? `${quote.feePercent}%` : '—'}</span>
+                <span className="text-muted-foreground">{t('coin.trade.modal.protocolFee')}</span>
+                <span className="text-foreground">
+                  {modalTradeDetails.feePercent != null ? `${modalTradeDetails.feePercent}%` : '—'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Estimated Gas</span>
+                <span className="text-muted-foreground">{t('coin.trade.modal.estimatedGas')}</span>
                 <span className="text-foreground">
                   {simulationState.status === 'success'
                     ? formatGas(simulationState.estimatedGas)
@@ -601,13 +643,13 @@ export function TradePanel({
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Underlying</span>
+                <span className="text-muted-foreground">{t('coin.trade.underlying')}</span>
                 <span className="text-foreground">{token.underlying}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Leverage / Direction</span>
+                <span className="text-muted-foreground">{t('coin.trade.modal.leverageDirection')}</span>
                 <span className="text-foreground">
-                  {token.leverage}x / {token.direction}
+                  {token.leverage}x / {directionLabel}
                 </span>
               </div>
             </div>
@@ -619,7 +661,7 @@ export function TradePanel({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
               >
-                View Transaction Details
+                {t('coin.trade.modal.viewTx')}
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -644,10 +686,10 @@ export function TradePanel({
                     }
                   >
                     {simulationState.status === 'running'
-                      ? 'Simulation running: transaction is being validated before submission.'
+                      ? t('coin.trade.modal.simRunning')
                       : simulationState.status === 'success'
-                        ? 'Simulation passed: transaction is expected to execute successfully.'
-                        : 'Simulation failed: transaction is likely to fail, please adjust amount or slippage and try again.'}
+                        ? t('coin.trade.modal.simPassed')
+                        : t('coin.trade.modal.simFailed')}
                   </p>
                 </div>
               </div>
@@ -660,10 +702,13 @@ export function TradePanel({
               className="mt-4 w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPending
-                ? 'Processing...'
+                ? t('coin.trade.modal.processing')
                 : txState.status === 'success'
-                  ? `Close (${closeCountdown}s)`
-                  : 'Close'}
+                  ? t('coin.trade.modal.closeCountdown').replace(
+                      '{sec}',
+                      String(closeCountdown),
+                    )
+                  : t('coin.trade.modal.close')}
             </button>
           </div>
         </div>,

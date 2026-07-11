@@ -7,6 +7,7 @@ import {
 } from '@/lib/apis/meme-server/format'
 import { useProtocolConfig } from '@/contexts/protocol-context'
 import { cn } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n/context'
 
 type BondingCurveVolumeBarProps = {
   progress: number
@@ -20,6 +21,7 @@ export function BondingCurveVolumeBar({
   volumeUsd,
   className,
 }: BondingCurveVolumeBarProps) {
+  const { t } = useI18n()
   const { config } = useProtocolConfig()
   const targetUsd = config.graduationTargetUsdc
   const currentUsd = resolveBondingCurveVolumeUsd({
@@ -33,7 +35,7 @@ export function BondingCurveVolumeBar({
   return (
     <div className={cn('space-y-1.5', className)}>
       <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        CURVE
+        {t('coin.curve.label')}
       </span>
 
       <div className="flex items-center gap-2">
@@ -70,6 +72,7 @@ export function BondingCurveProgressSection({
   variant = 'embedded',
   className,
 }: BondingCurveProgressSectionProps) {
+  const { t } = useI18n()
   if (!graduated) {
     return (
       <BondingCurveVolumeBar
@@ -84,7 +87,7 @@ export function BondingCurveProgressSection({
     return (
       <div className={className}>
         <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
-          <span className="text-muted-foreground">Bonding Curve</span>
+          <span className="text-muted-foreground">{t('coin.curve.bonding')}</span>
           <span className="font-medium text-foreground">{progress.toFixed(1)}%</span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -93,7 +96,7 @@ export function BondingCurveProgressSection({
             style={{ width: `${progress}%` }}
           />
         </div>
-        <p className="mt-1 text-[11px] text-primary">Graduated to DEX</p>
+        <p className="mt-1 text-[11px] text-primary">{t('coin.curve.graduatedShort')}</p>
       </div>
     )
   }
@@ -101,7 +104,7 @@ export function BondingCurveProgressSection({
   return (
     <div className={className}>
       <div className="mb-2 flex justify-between text-sm">
-        <span className="text-muted-foreground">Bonding Curve Progress</span>
+        <span className="text-muted-foreground">{t('coin.curve.progress')}</span>
         <span className="font-semibold text-foreground">{progress.toFixed(2)}%</span>
       </div>
       <div className="h-3 overflow-hidden rounded-full bg-muted">
@@ -110,7 +113,7 @@ export function BondingCurveProgressSection({
           style={{ width: `${progress}%` }}
         />
       </div>
-      <p className="mt-2 text-xs text-primary">Token has graduated to DEX</p>
+      <p className="mt-2 text-xs text-primary">{t('coin.curve.graduatedLong')}</p>
     </div>
   )
 }

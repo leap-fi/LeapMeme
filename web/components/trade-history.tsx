@@ -6,6 +6,7 @@ import type { TokenTradeDto } from '@/lib/apis/meme-server/types'
 import type { Token } from '@/lib/mock-data'
 import { hyperEvm } from '@/lib/contracts/chain'
 import { Check, Copy, ExternalLink } from 'lucide-react'
+import { useI18n } from '@/lib/i18n/context'
 
 interface TradeHistoryProps {
   token: Token
@@ -70,7 +71,11 @@ function formatCompactNumber(value: number): string {
   if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
   if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}K`
   if (abs >= 1) return value.toLocaleString(undefined, { maximumFractionDigits: 2 })
-  return value.toLocaleString(undefined, { maximumFractionDigits: 6 })
+  if (abs >= 0.000001) {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 6 })
+  }
+  // Dust amounts (e.g. post-withdraw DEX leftovers) — avoid showing a misleading "0".
+  return '<0.000001'
 }
 
 function formatUsd(value: number): string {
@@ -116,6 +121,7 @@ export function TradeHistory({
   embedded,
   refreshKey = 0,
 }: TradeHistoryProps) {
+  const { t } = useI18n()
   const [tradesApiData, setTradesApiData] = useState<TokenTradeDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -156,14 +162,14 @@ export function TradeHistory({
     } catch (err) {
       if (!loadedOnceRef.current) {
         setTradesApiData([])
-        setError(err instanceof Error ? err.message : 'Failed to load trades')
+        setError(err instanceof Error ? err.message : t('coin.trades.error'))
       }
     } finally {
       if (!silent && isFirstLoad) {
         setLoading(false)
       }
     }
-  }, [contractAddressOverride, token.contractAddress])
+  }, [contractAddressOverride, token.contractAddress, t])
 
   const tradeAddress =
     contractAddressOverride?.trim() || token.contractAddress?.trim() || ''
@@ -194,29 +200,29 @@ export function TradeHistory({
   return (
     <div className={embedded ? 'space-y-1' : 'bg-card rounded-xl p-6'}>
       {!embedded && (
-        <h3 className="text-lg font-semibold text-foreground mb-4">Recent Trades</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-4">{t('coin.trades.title')}</h3>
       )}
 
       {loading && (
-        <div className="px-2 py-2 text-sm text-muted-foreground">Loading trades...</div>
+        <div className="px-2 py-2 text-sm text-muted-foreground">{t('coin.trades.loading')}</div>
       )}
       {!loading && error && (
         <div className="px-2 py-2 text-sm text-destructive">{error}</div>
       )}
       {!loading && !error && trades.length === 0 && (
-        <div className="px-2 py-2 text-sm text-muted-foreground">No trades yet.</div>
+        <div className="px-2 py-2 text-sm text-muted-foreground">{t('coin.trades.empty')}</div>
       )}
       {!loading && !error && trades.length > 0 && (
         <div className={embedded ? 'overflow-x-auto' : '-mx-2 overflow-x-auto'}>
           <table className="w-full min-w-[36rem] table-fixed border-collapse text-sm">
             <thead>
               <tr className={tableHeaderClass}>
-                <th className={`w-[22%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>ACCOUNT</th>
-                <th className={`w-[10%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>TYPE</th>
-                <th className={`w-[18%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>USDC</th>
+                <th className={`w-[22%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.trades.account')}</th>
+                <th className={`w-[10%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.trades.type')}</th>
+                <th className={`w-[18%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.trades.usdc')}</th>
                 <th className={`w-[18%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{tokenColumnLabel}</th>
-                <th className={`w-[14%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>TIME</th>
-                <th className={`w-[18%] whitespace-nowrap pb-3 text-right ${embedded ? 'px-4' : 'px-2'}`}>TXN</th>
+                <th className={`w-[14%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.trades.time')}</th>
+                <th className={`w-[18%] whitespace-nowrap pb-3 text-right ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.trades.txn')}</th>
               </tr>
             </thead>
             <tbody>
@@ -230,7 +236,7 @@ export function TradeHistory({
                       {shortAddress(trade.account)}
                       <button
                         type="button"
-                        title="Copy address"
+                        title={t('coin.info.copyAddress')}
                         onClick={() => handleCopyAddress(trade.id, trade.account)}
                         className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
                       >
@@ -247,7 +253,7 @@ export function TradeHistory({
                       embedded ? 'px-4 py-2.5' : 'px-2 py-2'
                     } ${trade.type === 'buy' ? 'text-primary' : 'text-destructive'}`}
                   >
-                    {trade.type.toUpperCase()}
+                    {trade.type === 'buy' ? t('coin.trades.buy') : t('coin.trades.sell')}
                   </td>
                   <td
                     className={`max-w-0 truncate whitespace-nowrap text-foreground ${

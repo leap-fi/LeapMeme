@@ -30,15 +30,30 @@ function toKlineNumber(value: number | string | undefined): number {
   return Number.isFinite(n) ? n : 0
 }
 
+/** lightweight-charts rejects |price| above ≈ MAX_SAFE_INTEGER / 100. */
+const CHART_PRICE_MAX = Number.MAX_SAFE_INTEGER / 100
+
 /** Some responses use 1e8 fixed-point prices (27456 -> 0.00027456), others are already decimal. */
 export function resolveKlinePriceDivisor(items: KlineListItem[]): number {
-  const closes = items.map((item) => toKlineNumber(item.closePrice)).filter((p) => p > 0)
-  if (closes.length === 0) return 1
+  const prices: number[] = []
+  for (const item of items) {
+    for (const key of ['openPrice', 'highPrice', 'lowPrice', 'closePrice'] as const) {
+      const p = toKlineNumber(item[key])
+      if (p > 0) prices.push(p)
+    }
+  }
+  if (prices.length === 0) return 1
 
-  const sorted = [...closes].sort((a, b) => a - b)
+  const sorted = [...prices].sort((a, b) => a - b)
   const median = sorted[Math.floor(sorted.length / 2)]
-  if (median >= 100) return 1e8
-  return 1
+  const max = sorted[sorted.length - 1]
+
+  // Fixed-point heuristic, then keep scaling until chart-safe.
+  let divisor = median >= 100 ? 1e8 : 1
+  while (max / divisor > CHART_PRICE_MAX) {
+    divisor *= 10
+  }
+  return divisor
 }
 
 function normalizeKlineItem(item: KlineListItem, priceDivisor: number): KlineListItem {

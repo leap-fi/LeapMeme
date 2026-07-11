@@ -28,7 +28,7 @@ export default function ProfilePage() {
     return (
       <ProfilePageView
         walletAddress={null}
-        shortAddress="Guest"
+        shortAddress="—"
         isLoadingWallet={false}
         authenticated={false}
         authReady

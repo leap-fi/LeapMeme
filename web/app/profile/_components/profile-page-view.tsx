@@ -275,13 +275,11 @@ export function ProfilePageView({
             <div>
               <p className={`${profileSectionLabel} mb-1`}>{t('profile.title')}</p>
               <div className="flex items-center gap-2 flex-wrap">
-                {isLoadingWallet ? (
+                {authenticated && isLoadingWallet ? (
                   <div className="h-7 w-32 bg-secondary rounded animate-pulse" aria-hidden />
-                ) : (
-                  <span className="text-xl font-bold text-foreground font-mono">{shortAddress}</span>
-                )}
-                {walletAddress && (
+                ) : authenticated && walletAddress ? (
                   <>
+                    <span className="text-xl font-bold text-foreground font-mono">{shortAddress}</span>
                     <button
                       type="button"
                       onClick={handleCopy}
@@ -299,16 +297,15 @@ export function ProfilePageView({
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   </>
-                )}
-                {authReady && !authenticated && onConnect && !walletUnavailable && (
+                ) : authReady && !authenticated && onConnect && !walletUnavailable ? (
                   <button
                     type="button"
                     onClick={onConnect}
-                    className="text-xs text-primary hover:underline font-semibold"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
                   >
                     {t('profile.connectWallet')}
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -1097,17 +1094,29 @@ function TransferOwnershipTab({
             {createdTokens.map((token) => {
               const isSelected = token.id === selectedTokenId
               return (
-                <button
+                <div
                   key={token.id}
-                  type="button"
                   role="radio"
+                  tabIndex={transferring ? -1 : 0}
                   aria-checked={isSelected}
-                  disabled={transferring}
-                  onClick={() => setSelectedTokenId(token.id)}
-                  className={`w-full rounded-lg border px-4 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${isSelected
+                  aria-disabled={transferring}
+                  onClick={() => {
+                    if (!transferring) setSelectedTokenId(token.id)
+                  }}
+                  onKeyDown={(e) => {
+                    if (transferring) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setSelectedTokenId(token.id)
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-4 py-3 text-left transition-all ${
+                    transferring ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  } ${
+                    isSelected
                       ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                       : 'border-border bg-card hover:border-primary/40 hover:bg-secondary/20'
-                    }`}
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <TokenAvatar
@@ -1139,7 +1148,7 @@ function TransferOwnershipTab({
                       aria-hidden
                     />
                   </div>
-                </button>
+                </div>
               )
             })}
           </div>

@@ -6,6 +6,7 @@ import { getTokenPositions } from '@/lib/apis/meme-server/token-positions.api'
 import type { UserPositionDto } from '@/lib/apis/meme-server/types'
 import { hyperEvm } from '@/lib/contracts/chain'
 import { ExternalLink } from 'lucide-react'
+import { useI18n } from '@/lib/i18n/context'
 
 interface TokenHoldersProps {
   token: Token
@@ -83,6 +84,7 @@ export function TokenHolders({
   totalSupply,
   tokenDecimals,
 }: TokenHoldersProps) {
+  const { t } = useI18n()
   const [positions, setPositions] = useState<UserPositionDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -97,7 +99,7 @@ export function TokenHolders({
     if (!tokenAddress) {
       loadedOnceRef.current = false
       setPositions([])
-      setError('Missing token address')
+      setError(t('coin.holders.missingAddress'))
       setLoading(false)
       return
     }
@@ -113,14 +115,14 @@ export function TokenHolders({
     } catch (err) {
       if (!loadedOnceRef.current) {
         setPositions([])
-        setError(err instanceof Error ? err.message : 'Failed to load holders')
+        setError(err instanceof Error ? err.message : t('coin.holders.error'))
       }
     } finally {
       if (!silent && isFirstLoad) {
         setLoading(false)
       }
     }
-  }, [tokenAddress])
+  }, [tokenAddress, t])
 
   useEffect(() => {
     loadedOnceRef.current = false
@@ -180,17 +182,17 @@ export function TokenHolders({
   return (
     <div className={embedded ? 'space-y-1' : 'bg-card rounded-xl p-6'}>
       {!embedded && (
-        <h3 className="text-lg font-semibold text-foreground mb-4">Top Holders</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-4">{t('coin.holders.title')}</h3>
       )}
 
       {loading && (
-        <div className="px-2 py-2 text-sm text-muted-foreground">Loading holders...</div>
+        <div className="px-2 py-2 text-sm text-muted-foreground">{t('coin.holders.loading')}</div>
       )}
       {!loading && error && (
         <div className="px-2 py-2 text-sm text-destructive">{error}</div>
       )}
       {!loading && !error && holders.length === 0 && (
-        <div className="px-2 py-2 text-sm text-muted-foreground">No holders found.</div>
+        <div className="px-2 py-2 text-sm text-muted-foreground">{t('coin.holders.empty')}</div>
       )}
 
       {!loading && !error && holders.length > 0 && (
@@ -199,10 +201,10 @@ export function TokenHolders({
             <thead>
               <tr className={tableHeaderClass}>
                 <th className={`w-[8%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>#</th>
-                <th className={`w-[28%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>WALLET</th>
+                <th className={`w-[28%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.holders.wallet')}</th>
                 <th className={`w-[20%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{tokenColumnLabel}</th>
-                <th className={`w-[16%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>% SUPPLY</th>
-                <th className={`w-[28%] whitespace-nowrap pb-3 text-right ${embedded ? 'px-4' : 'px-2'}`}>BAR</th>
+                <th className={`w-[16%] whitespace-nowrap pb-3 ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.holders.supplyPct')}</th>
+                <th className={`w-[28%] whitespace-nowrap pb-3 text-right ${embedded ? 'px-4' : 'px-2'}`}>{t('coin.holders.bar')}</th>
               </tr>
             </thead>
             <tbody>
@@ -256,7 +258,7 @@ export function TokenHolders({
       {!loading && !error && (
         <div className={`${embedded ? 'px-4' : ''} mt-4 border-t border-border/50 pt-4`}>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Total Holders</span>
+            <span className="text-muted-foreground">{t('coin.holders.total')}</span>
             <span className="font-semibold text-foreground">{holderCount}</span>
           </div>
         </div>

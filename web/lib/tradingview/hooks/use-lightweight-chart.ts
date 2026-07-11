@@ -14,13 +14,31 @@ import {
 } from '@/lib/tradingview/chart-format'
 import type { KlineCandle, KlinePeriod } from '@/lib/tradingview/types'
 
-function toSeriesData(candles: KlineCandle[]): CandlestickData[] {
+/**
+ * lightweight-charts hard-rejects |OHLC| above this (≈ MAX_SAFE_INTEGER / 100).
+ * priceFormat / autoScale cannot raise it — data must be scaled down first.
+ */
+const CHART_PRICE_MAX = Number.MAX_SAFE_INTEGER / 100
+
+/** Smallest power-of-10 divisor that keeps max |OHLC| within the library limit. */
+function resolveDisplayScale(candles: KlineCandle[]): number {
+  let maxAbs = 0
+  for (const c of candles) {
+    for (const v of [c.open, c.high, c.low, c.close]) {
+      if (Number.isFinite(v)) maxAbs = Math.max(maxAbs, Math.abs(v))
+    }
+  }
+  if (!(maxAbs > CHART_PRICE_MAX)) return 1
+  return 10 ** Math.ceil(Math.log10(maxAbs / CHART_PRICE_MAX))
+}
+
+function toSeriesData(candles: KlineCandle[], scale: number): CandlestickData[] {
   return candles.map((c) => ({
     time: toChartTime(c.time) as CandlestickData['time'],
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
+    open: c.open / scale,
+    high: c.high / scale,
+    low: c.low / scale,
+    close: c.close / scale,
   }))
 }
 
@@ -34,7 +52,7 @@ function formatAxisPrice(price: number): string {
   return price.toFixed(10)
 }
 
-function getPriceFormat(candles: KlineCandle[]) {
+function getPriceFormat(candles: KlineCandle[], scale: number) {
   const closes = candles.map((c) => c.close).filter((v) => Number.isFinite(v) && v > 0)
   const sample = closes.length > 0 ? closes[closes.length - 1] : 1
   const abs = Math.abs(sample)
@@ -58,11 +76,14 @@ function getPriceFormat(candles: KlineCandle[]) {
     minMove = 0.0000000001
   }
 
+  // Series stores price/scale; axis labels show the real price again.
+  const minMoveScaled = minMove / scale
+
   return {
     type: 'custom' as const,
-    formatter: formatAxisPrice,
+    formatter: (price: number) => formatAxisPrice(price * scale),
     precision,
-    minMove,
+    minMove: minMoveScaled > 0 ? minMoveScaled : minMove,
   }
 }
 
@@ -73,7 +94,8 @@ function buildCandlesSignature(candles: KlineCandle[]): string {
   if (candles.length === 0) return 'empty'
   const first = candles[0]
   const last = candles[candles.length - 1]
-  return `${candles.length}:${first.time}:${last.time}:${last.close}`
+  // Include OHLC extremes so a spike high/low forces rescaling even when close is unchanged.
+  return `${candles.length}:${first.time}:${last.time}:${last.open}:${last.high}:${last.low}:${last.close}`
 }
 
 export function useLightweightChart(
@@ -90,9 +112,14 @@ export function useLightweightChart(
   const lastBarTimeRef = useRef<number | null>(null)
   const firstBarTimeRef = useRef<number | null>(null)
   const appliedPeriodRef = useRef<KlinePeriod>(period)
+  const displayScaleRef = useRef(1)
 
   const candlesSignature = useMemo(() => buildCandlesSignature(candles), [candles])
-  const seriesData = useMemo(() => toSeriesData(candles), [candlesSignature])
+  const displayScale = useMemo(() => resolveDisplayScale(candles), [candlesSignature])
+  const seriesData = useMemo(
+    () => toSeriesData(candles, displayScale),
+    [candlesSignature, displayScale],
+  )
   const localization = useMemo(() => createKlineChartLocalization(period), [period])
   const timeScaleOptions = useMemo(() => createKlineTimeScaleOptions(period), [period])
 
@@ -168,6 +195,8 @@ export function useLightweightChart(
 
     const periodChanged = appliedPeriodRef.current !== period
     appliedPeriodRef.current = period
+    const scaleChanged = displayScaleRef.current !== displayScale
+    displayScaleRef.current = displayScale
 
     if (seriesData.length === 0) {
       series.setData([])
@@ -186,6 +215,7 @@ export function useLightweightChart(
     const isTickUpdate =
       dataInitializedRef.current &&
       !periodChanged &&
+      !scaleChanged &&
       seriesData.length === prevLength &&
       lastTime != null &&
       lastTime === lastBarTimeRef.current
@@ -193,6 +223,7 @@ export function useLightweightChart(
     const isAppend =
       dataInitializedRef.current &&
       !periodChanged &&
+      !scaleChanged &&
       seriesData.length === prevLength + 1 &&
       lastTime != null &&
       lastBarTimeRef.current != null &&
@@ -201,6 +232,7 @@ export function useLightweightChart(
     const needsFullSet =
       !dataInitializedRef.current ||
       periodChanged ||
+      scaleChanged ||
       (!isTickUpdate &&
         !isAppend &&
         (seriesData.length !== prevLength ||
@@ -212,7 +244,7 @@ export function useLightweightChart(
     lastBarTimeRef.current = lastTime
 
     if (needsFullSet) {
-      series.applyOptions({ priceFormat: getPriceFormat(candles) })
+      series.applyOptions({ priceFormat: getPriceFormat(candles, displayScale) })
       series.setData(seriesData)
       dataInitializedRef.current = true
 
@@ -235,5 +267,13 @@ export function useLightweightChart(
         series.setData(seriesData)
       }
     }
-  }, [candles, candlesSignature, period, seriesData, localization, timeScaleOptions])
+  }, [
+    candles,
+    candlesSignature,
+    displayScale,
+    period,
+    seriesData,
+    localization,
+    timeScaleOptions,
+  ])
 }

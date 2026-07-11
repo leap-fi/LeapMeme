@@ -196,6 +196,44 @@ contract LeapProtocolTest is Test {
         vm.stopPrank();
     }
 
+    /// @dev 100% 卖出：真钱 cap 后 `raisedUsdc` 不得下溢，且不超过买入净额。
+    function test_Sell_fullBalance_doesNotUnderflowRaisedUsdc() public {
+        address token = _createTokenAs(creator);
+        uint256 buyUsdc = 516_250_000; // 516.25 USDC，与本地复现案例同量级
+        uint256 netBuy = buyUsdc - (buyUsdc * zap.buyFeeBps()) / 10_000;
+
+        vm.startPrank(trader);
+        usdc.approve(address(zap), buyUsdc);
+        zap.buy(token, buyUsdc, 0, address(0));
+
+        uint256 balance = IERC20(token).balanceOf(trader);
+        assertGt(balance, 0);
+
+        uint256 quotedGross = bonding.quoteSell(token, balance);
+        assertLe(quotedGross, bonding.raisedUsdc(token));
+
+        IERC20(token).approve(address(zap), balance);
+        uint256 usdcOut = zap.sell(token, balance, 0);
+        assertGt(usdcOut, 0);
+        assertLe(bonding.raisedUsdc(token), netBuy);
+        vm.stopPrank();
+    }
+
+    function test_SellWithPermit_fullBalance() public {
+        address token = _createTokenAs(creator);
+        uint256 buyUsdc = 516_250_000;
+
+        vm.startPrank(trader);
+        usdc.approve(address(zap), buyUsdc);
+        zap.buy(token, buyUsdc, 0, address(0));
+
+        uint256 balance = IERC20(token).balanceOf(trader);
+        LeapZap.PermitInput memory p = _signPermit(token, traderPk, trader, balance);
+        uint256 usdcOut = zap.sellWithPermit(token, balance, 0, p);
+        assertGt(usdcOut, 0);
+        vm.stopPrank();
+    }
+
     function test_Buy_revertsBelowMinUsdc() public {
         address token = _createTokenAs(creator);
 
@@ -203,6 +241,24 @@ contract LeapProtocolTest is Test {
         usdc.approve(address(zap), 100);
         vm.expectRevert(bytes("min buy"));
         zap.buy(token, 99, 0, address(0));
+        vm.stopPrank();
+    }
+
+    function test_Router_quoteSell_matchesSell() public {
+        address token = _createTokenAs(creator);
+
+        vm.startPrank(trader);
+        usdc.approve(address(zap), BUY_USDC);
+        uint256 tokensOut = zap.buy(token, BUY_USDC, 0, address(0));
+
+        uint256 quotedGross = router.getAmountOut(token, false, tokensOut);
+        uint256 bondingQuote = bonding.quoteSell(token, tokensOut);
+        assertEq(quotedGross, bondingQuote);
+
+        IERC20(token).approve(address(zap), tokensOut);
+        uint256 netUsdc = zap.sell(token, tokensOut, 0);
+        uint256 fee = (bondingQuote * zap.sellFeeBps()) / 10_000;
+        assertEq(netUsdc, bondingQuote - fee);
         vm.stopPrank();
     }
 
@@ -360,6 +416,37 @@ contract LeapProtocolTest is Test {
         assertEq(IERC20(pair).balanceOf(address(bonding)), 0, "lp burned");
         assertTrue(bonding.liquidityWithdrawn(token), "marked withdrawn");
         assertFalse(bonding.canWithdrawLockedLiquidity(token), "not withdrawable after");
+    }
+
+    function test_WithdrawLockedLiquidity_voidsFurtherTrades() public {
+        address token = _createTokenAs(creator);
+        _graduate(token);
+
+        uint256 creatorHeld = IERC20(token).balanceOf(creator);
+        if (creatorHeld > 0) {
+            vm.startPrank(creator);
+            IERC20(token).approve(address(zap), creatorHeld);
+            zap.sell(token, creatorHeld, 0);
+            vm.stopPrank();
+        }
+
+        uint256 traderHeld = IERC20(token).balanceOf(trader);
+        if (traderHeld > 0) {
+            vm.startPrank(trader);
+            IERC20(token).approve(address(zap), traderHeld);
+            zap.sell(token, traderHeld, 0);
+            vm.stopPrank();
+        }
+
+        vm.prank(creator);
+        bonding.withdrawLockedLiquidity(token);
+
+        deal(address(usdc), trader, 1_000e6);
+        vm.startPrank(trader);
+        usdc.approve(address(zap), type(uint256).max);
+        vm.expectRevert(bytes("voided"));
+        zap.buy(token, 100e6, 0, address(0));
+        vm.stopPrank();
     }
 
     function test_WithdrawLockedLiquidity_revertsOnDoubleWithdraw() public {

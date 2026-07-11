@@ -198,18 +198,38 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
         raisedUsdc[token] += usdcIn;
     }
 
+    /// @dev 曲线卖出：按 x·y=k 定价，但 `usdcOut` 不超过 `realUsdcRaised`（真钱上限，对齐 pump.fun real reserves）。
+    ///      若公式产出超过真钱，则 cap 并回写 `newUsdcReserve = usdcReserve - usdcOut`。
+    function _curveSellQuote(
+        uint256 usdcReserve,
+        uint256 tokenReserve,
+        uint256 tokenIn,
+        uint256 realUsdcRaised
+    ) internal pure returns (uint256 usdcOut, uint256 newUsdcReserve, uint256 newTokenReserve) {
+        newTokenReserve = tokenReserve + tokenIn;
+        newUsdcReserve = (usdcReserve * tokenReserve) / newTokenReserve;
+        usdcOut = usdcReserve - newUsdcReserve;
+
+        if (usdcOut > realUsdcRaised) {
+            usdcOut = realUsdcRaised;
+            newUsdcReserve = usdcReserve - usdcOut;
+        }
+    }
+
     function _applySellToCurve(address token, uint256 tokenIn) internal returns (uint256 usdcOut) {
         uint256 usdcReserve = reserveUsdc[token];
         uint256 tokenReserve = reserveToken[token];
         require(usdcReserve > 0 && tokenReserve > 0, "no curve");
 
-        uint256 newTokenReserve = tokenReserve + tokenIn;
-        uint256 newUsdcReserve = (usdcReserve * tokenReserve) / newTokenReserve;
-        usdcOut = usdcReserve - newUsdcReserve;
+        uint256 realUsdc = raisedUsdc[token];
+        uint256 newUsdcReserve;
+        uint256 newTokenReserve;
+        (usdcOut, newUsdcReserve, newTokenReserve) =
+            _curveSellQuote(usdcReserve, tokenReserve, tokenIn, realUsdc);
 
         reserveUsdc[token] = newUsdcReserve;
         reserveToken[token] = newTokenReserve;
-        raisedUsdc[token] -= usdcOut;
+        raisedUsdc[token] = realUsdc - usdcOut;
     }
 
     function quoteBuy(address token, uint256 usdcIn)
@@ -233,9 +253,7 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
         uint256 usdcReserve = reserveUsdc[token];
         uint256 tokenReserve = reserveToken[token];
         if (usdcReserve == 0 || tokenReserve == 0) return 0;
-        uint256 newTokenReserve = tokenReserve + tokenIn;
-        uint256 newUsdcReserve = (usdcReserve * tokenReserve) / newTokenReserve;
-        usdcOut = usdcReserve - newUsdcReserve;
+        (usdcOut,,) = _curveSellQuote(usdcReserve, tokenReserve, tokenIn, raisedUsdc[token]);
     }
 
     // --- 毕业 ---
@@ -279,6 +297,7 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
     }
 
     function _graduatedBuy(address token, uint256 usdcIn, address buyer) internal returns (uint256 tokensOut) {
+        require(!liquidityWithdrawn[token], "voided");
         address lt = ltOf[token];
         usdc.forceApprove(lt, usdcIn);
         uint256 ltIn = IMockLTRedeemable(lt).deposit(usdcIn);
@@ -289,6 +308,7 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
     }
 
     function _graduatedSell(address token, uint256 tokenIn) internal returns (uint256 usdcOut) {
+        require(!liquidityWithdrawn[token], "voided");
         address lt = ltOf[token];
         address pair = pairOf[token];
 

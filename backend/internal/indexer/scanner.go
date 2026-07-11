@@ -21,10 +21,11 @@ type Scanner struct {
 	cfg       Config
 	zapABI    abi.ABI
 	erc20ABI  abi.ABI
-	zapAddrs  []ethcommon.Address
-	zapSet    map[ethcommon.Address]struct{}
-	usdcAddr  ethcommon.Address
-	chainID   *big.Int
+	zapAddrs    []ethcommon.Address
+	zapSet      map[ethcommon.Address]struct{}
+	bondingAddr ethcommon.Address
+	usdcAddr    ethcommon.Address
+	chainID     *big.Int
 }
 
 // NewScanner dials RPC and prepares contract bindings.
@@ -71,14 +72,15 @@ func NewScanner(cfg Config) (*Scanner, error) {
 	}
 
 	return &Scanner{
-		client:   client,
-		cfg:      cfg,
-		zapABI:   zapABI,
-		erc20ABI: erc20ABI,
-		zapAddrs: zapAddrs,
-		zapSet:   zapSet,
-		usdcAddr: ethcommon.HexToAddress(cfg.USDCAddress),
-		chainID:  chainID,
+		client:      client,
+		cfg:         cfg,
+		zapABI:      zapABI,
+		erc20ABI:    erc20ABI,
+		zapAddrs:    zapAddrs,
+		zapSet:      zapSet,
+		bondingAddr: ethcommon.HexToAddress(cfg.BondingAddress),
+		usdcAddr:    ethcommon.HexToAddress(cfg.USDCAddress),
+		chainID:     chainID,
 	}, nil
 }
 
@@ -146,6 +148,11 @@ func (s *Scanner) processBlock(ctx context.Context, blockNum uint64) error {
 
 	// 处理 TokenCreated 新币创建
 	if err := s.processTokenCreatedLogs(ctx, block); err != nil {
+		return err
+	}
+
+	// 处理创作者转让
+	if err := s.processCreatorTransferredLogs(ctx, block); err != nil {
 		return err
 	}
 
@@ -246,6 +253,37 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 		}
 		if err := s.recordSeedBuy(ctx, block, lg.TxHash, tokenAddr, creator, symbol, name, seedUsdc); err != nil {
 			common.SysError(fmt.Sprintf("indexer seed buy %s: %v", token.Address, err))
+		}
+	}
+	return nil
+}
+
+func (s *Scanner) processCreatorTransferredLogs(ctx context.Context, block *types.Block) error {
+	if s.cfg.BondingAddress == "" {
+		return nil
+	}
+
+	logs, err := s.client.FilterLogs(ctx, ethereum.FilterQuery{
+		FromBlock: block.Number(),
+		ToBlock:   block.Number(),
+		Addresses: []ethcommon.Address{s.bondingAddr},
+		Topics:    [][]ethcommon.Hash{{creatorTransferredTopic}},
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, lg := range logs {
+		if len(lg.Topics) < 4 {
+			continue
+		}
+		tokenAddr := ethcommon.BytesToAddress(lg.Topics[1].Bytes())
+		newCreator := ethcommon.BytesToAddress(lg.Topics[3].Bytes())
+		if err := model.UpdateTokenCreator(
+			strings.ToLower(tokenAddr.Hex()),
+			strings.ToLower(newCreator.Hex()),
+		); err != nil {
+			return err
 		}
 	}
 	return nil

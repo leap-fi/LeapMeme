@@ -48,6 +48,9 @@ func (j *ChainIndexerJob) Run(ctx context.Context) error {
 		if err := scanner.BackfillMissingTokens(ctx); err != nil {
 			common.SysError(fmt.Sprintf("chain_indexer backfill tokens: %v", err))
 		}
+		if err := scanner.BackfillTokenCreators(ctx); err != nil {
+			common.SysError(fmt.Sprintf("chain_indexer backfill creators: %v", err))
+		}
 	})
 
 	return scanner.RunOnce(ctx)

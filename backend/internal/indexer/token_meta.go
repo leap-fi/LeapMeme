@@ -158,6 +158,7 @@ func (s *Scanner) enrichToken(ctx context.Context, token *model.Token, launch *l
 
 	s.syncTokenGraduation(ctx, token, tokenAddr)
 	s.syncBondingCurveFromChain(ctx, token, tokenAddr)
+	s.syncCreatorFromChain(ctx, token, tokenAddr)
 	s.refreshTokenMarketFields(ctx, token, tokenAddr)
 
 	return nil
@@ -181,6 +182,7 @@ func (s *Scanner) ensureTokenRecord(ctx context.Context, tokenAddr ethcommon.Add
 
 	if existing != nil {
 		s.syncTokenGraduation(ctx, existing, tokenAddr)
+		s.syncCreatorFromChain(ctx, existing, tokenAddr)
 		return model.UpsertToken(existing)
 	}
 
@@ -237,6 +239,36 @@ func (s *Scanner) BackfillMissingTokens(ctx context.Context) error {
 		}
 		if err := s.ensureTokenRecord(ctx, ethcommon.HexToAddress(raw), nil); err != nil {
 			common.SysError(fmt.Sprintf("indexer backfill token %s: %v", raw, err))
+		}
+	}
+	return nil
+}
+
+// BackfillTokenCreators refreshes tokens.creator from on-chain creatorOf for all indexed tokens.
+func (s *Scanner) BackfillTokenCreators(ctx context.Context) error {
+	if s.cfg.BondingAddress == "" {
+		return nil
+	}
+	addresses, err := model.ListAllTokenAddresses()
+	if err != nil {
+		return err
+	}
+	for _, raw := range addresses {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		token, err := model.GetTokenByAddress(raw)
+		if err != nil || token == nil {
+			if err != nil {
+				common.SysError(fmt.Sprintf("indexer backfill creator load %s: %v", raw, err))
+			}
+			continue
+		}
+		tokenAddr := ethcommon.HexToAddress(raw)
+		s.syncCreatorFromChain(ctx, token, tokenAddr)
+		if err := model.UpsertToken(token); err != nil {
+			common.SysError(fmt.Sprintf("indexer backfill creator save %s: %v", raw, err))
 		}
 	}
 	return nil
@@ -418,12 +450,11 @@ func (s *Scanner) readIsGraduated(ctx context.Context, token ethcommon.Address) 
 	if err != nil {
 		return false, err
 	}
-	bonding := ethcommon.HexToAddress(s.cfg.BondingAddress)
 	data, err := bondingABI.Pack("isGraduated", token)
 	if err != nil {
 		return false, err
 	}
-	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &bonding, Data: data}, nil)
+	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &s.bondingAddr, Data: data}, nil)
 	if err != nil {
 		return false, err
 	}
@@ -433,6 +464,33 @@ func (s *Scanner) readIsGraduated(ctx context.Context, token ethcommon.Address) 
 	}
 	v, _ := values[0].(bool)
 	return v, nil
+}
+
+func (s *Scanner) syncCreatorFromChain(ctx context.Context, token *model.Token, tokenAddr ethcommon.Address) {
+	if token == nil || s.cfg.BondingAddress == "" {
+		return
+	}
+	bondingABI, err := parseBondingABI()
+	if err != nil {
+		return
+	}
+	data, err := bondingABI.Pack("creatorOf", tokenAddr)
+	if err != nil {
+		return
+	}
+	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &s.bondingAddr, Data: data}, nil)
+	if err != nil {
+		return
+	}
+	values, err := bondingABI.Unpack("creatorOf", out)
+	if err != nil || len(values) == 0 {
+		return
+	}
+	creator, ok := values[0].(ethcommon.Address)
+	if !ok || creator == (ethcommon.Address{}) {
+		return
+	}
+	token.Creator = strings.ToLower(creator.Hex())
 }
 
 func (s *Scanner) readRaisedUsdc(ctx context.Context, token ethcommon.Address) (*big.Int, error) {

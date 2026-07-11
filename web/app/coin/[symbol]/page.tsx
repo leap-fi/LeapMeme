@@ -37,6 +37,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Footer } from '@/components/footer'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { useI18n } from '@/lib/i18n/context'
+import { CONTRACTS } from '@/lib/contracts/config'
+import { readTokenStatus, type TradeContracts } from '@/lib/contracts/trade-quote'
 
 const LG_BREAKPOINT_PX = 1024
 
@@ -86,6 +89,7 @@ function toHexAddress(value?: string | null): `0x${string}` | undefined {
 }
 
 export default function CoinPage() {
+  const { t } = useI18n()
   const params = useParams()
   const searchParams = useSearchParams()
   const symbol = safeDecodeURIComponent(params.symbol as string)
@@ -108,6 +112,7 @@ export default function CoinPage() {
   const fetchAddress = addressOverride?.trim() || tokenFromList?.contractAddress?.trim() || ''
   const { detail, refetch: refetchDetail } = useTokenDetail(fetchAddress)
   const [tradeRefreshKey, setTradeRefreshKey] = useState(0)
+  const [tradeDisabled, setTradeDisabled] = useState(false)
   const isLgUp = useIsLgUp()
   const [tradeDrawerOpen, setTradeDrawerOpen] = useState(false)
 
@@ -115,6 +120,31 @@ export default function CoinPage() {
     setTradeRefreshKey((key) => key + 1)
     void refetchDetail({ silent: true })
   }, [refetchDetail])
+
+  const statusTokenAddress = toHexAddress(fetchAddress)
+  const statusBondingAddress = toHexAddress(detail?.bonding) ?? CONTRACTS.bonding
+
+  useEffect(() => {
+    if (!statusTokenAddress) {
+      setTradeDisabled(false)
+      return
+    }
+    let cancelled = false
+    const contracts: TradeContracts = {
+      ...CONTRACTS,
+      bonding: statusBondingAddress,
+    }
+    void readTokenStatus(statusTokenAddress, contracts)
+      .then((status) => {
+        if (!cancelled) setTradeDisabled(status.tradeDisabled)
+      })
+      .catch(() => {
+        if (!cancelled) setTradeDisabled(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [statusTokenAddress, statusBondingAddress])
 
   const resolvedToken = useMemo(() => {
     const underlying = detail?.market?.trim()
@@ -201,10 +231,10 @@ export default function CoinPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-transparent">
         <h1 className="text-4xl font-bold text-primary mb-4">404</h1>
-        <p className="text-muted-foreground mb-6">Token not found</p>
+        <p className="text-muted-foreground mb-6">{t('coin.notFound')}</p>
         <Link href="/" className="text-primary hover:underline flex items-center gap-2">
           <ArrowLeft className="w-4 h-4" />
-          Return to Home
+          {t('coin.returnHome')}
         </Link>
       </div>
     )
@@ -280,7 +310,7 @@ export default function CoinPage() {
       <div className="w-full px-4 py-4">
         <Link href="/" className="text-primary hover:underline flex items-center gap-2 text-sm">
           <ArrowLeft className="w-4 h-4" />
-          Back to Markets
+          {t('coin.backToMarkets')}
         </Link>
       </div>
 
@@ -317,7 +347,12 @@ export default function CoinPage() {
                       </h1>
                       {display.graduated && (
                         <span className="px-2 py-1 text-xs font-semibold bg-primary/20 text-primary rounded">
-                          GRADUATED
+                          {t('coin.graduated')}
+                        </span>
+                      )}
+                      {tradeDisabled && (
+                        <span className="px-2 py-1 text-xs font-semibold bg-destructive/20 text-destructive rounded">
+                          {t('coin.voided')}
                         </span>
                       )}
                       <TokenSocialLinks
@@ -329,13 +364,16 @@ export default function CoinPage() {
                     {display.subtitle ? (
                       <p className="text-sm leading-relaxed text-muted-foreground">{display.subtitle}</p>
                     ) : null}
+                    {tradeDisabled ? (
+                      <p className="mt-1 text-sm text-destructive">{t('coin.voided.hint')}</p>
+                    ) : null}
                   </div>
                   <div className="shrink-0 text-right">
                     <p className={`text-xl font-bold sm:text-2xl ${display.change24h >= 0 ? 'text-primary' : 'text-destructive'}`}>
                       {display.change24h >= 0 ? '+' : ''}
                       {display.change24h.toFixed(2)}%
                     </p>
-                    <p className="text-xs text-muted-foreground sm:text-sm">24H Change</p>
+                    <p className="text-xs text-muted-foreground sm:text-sm">{t('coin.change24h')}</p>
                   </div>
                 </div>
               </div>
@@ -356,13 +394,13 @@ export default function CoinPage() {
                     value="trades"
                     className="flex h-full min-h-0 items-center justify-center self-stretch rounded-[4px] border-0 px-3 py-0 text-xs leading-none font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground/80 data-[state=active]:bg-foreground/5 data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-white/5 dark:data-[state=active]:text-white sm:text-sm"
                   >
-                    Recent Trades
+                    {t('coin.tab.trades')}
                   </TabsTrigger>
                   <TabsTrigger
                     value="holders"
                     className="flex h-full min-h-0 items-center justify-center self-stretch rounded-[4px] border-0 px-3 py-0 text-xs leading-none font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground/80 data-[state=active]:bg-foreground/5 data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-white/5 dark:data-[state=active]:text-white sm:text-sm"
                   >
-                    Top Holders
+                    {t('coin.tab.holders')}
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="trades" className="mt-0">
@@ -400,7 +438,7 @@ export default function CoinPage() {
           <Drawer open={tradeDrawerOpen} onOpenChange={setTradeDrawerOpen} direction="bottom">
             <DrawerContent className="!h-auto max-h-[90vh] overflow-y-auto px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <DrawerHeader className="gap-1 px-0 pb-3 pt-0 text-left">
-                <DrawerTitle>Trade {display.symbol}</DrawerTitle>
+                <DrawerTitle>{t('coin.trade').replace('{symbol}', display.symbol)}</DrawerTitle>
               </DrawerHeader>
               {tradeDrawerOpen && <TradePanel {...tradePanelProps} embedded />}
             </DrawerContent>
@@ -410,10 +448,16 @@ export default function CoinPage() {
           <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
             <button
               type="button"
-              onClick={() => setTradeDrawerOpen(true)}
-              className="w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
+              onClick={() => {
+                if (tradeDisabled) return
+                setTradeDrawerOpen(true)
+              }}
+              disabled={tradeDisabled}
+              className="w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Trade {display.symbol}
+              {tradeDisabled
+                ? t('coin.trade.btn.voided')
+                : t('coin.trade').replace('{symbol}', display.symbol)}
             </button>
           </div>
           )}

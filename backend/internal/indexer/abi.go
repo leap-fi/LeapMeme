@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	tokenCreatedTopic = crypto.Keccak256Hash([]byte("TokenCreated(address,address,address)"))
-	transferTopic     = crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
+	tokenCreatedTopic         = crypto.Keccak256Hash([]byte("TokenCreated(address,address,address)"))
+	creatorTransferredTopic   = crypto.Keccak256Hash([]byte("CreatorTransferred(address,address,address)"))
+	transferTopic             = crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 )
 
 const zapABIJSON = `[
@@ -96,7 +97,13 @@ const erc20MetaABIJSON = `[
 
 const bondingABIJSON = `[
   {"type":"function","name":"isGraduated","inputs":[{"name":"token","type":"address"}],"outputs":[{"type":"bool"}],"stateMutability":"view"},
-  {"type":"function","name":"raisedUsdc","inputs":[{"name":"token","type":"address"}],"outputs":[{"type":"uint256"}],"stateMutability":"view"}
+  {"type":"function","name":"raisedUsdc","inputs":[{"name":"token","type":"address"}],"outputs":[{"type":"uint256"}],"stateMutability":"view"},
+  {"type":"function","name":"creatorOf","inputs":[{"name":"token","type":"address"}],"outputs":[{"type":"address"}],"stateMutability":"view"},
+  {"type":"event","name":"CreatorTransferred","inputs":[
+    {"name":"token","type":"address","indexed":true},
+    {"name":"oldCreator","type":"address","indexed":true},
+    {"name":"newCreator","type":"address","indexed":true}
+  ]}
 ]`
 
 const bounceLtABIJSON = `[

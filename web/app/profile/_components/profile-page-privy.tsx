@@ -159,11 +159,12 @@ export function ProfilePagePrivy() {
   }, [activeWallet, wallets])
 
   const walletAddress = useMemo(() => {
+    if (!authenticated) return null
     if (selectedWallet && 'address' in selectedWallet && selectedWallet.address) {
       return getViewerWalletAddress(selectedWallet.address)
     }
     return null
-  }, [selectedWallet])
+  }, [authenticated, selectedWallet])
 
   const shortAddress = walletAddress ? formatShortAddress(walletAddress) : '—'
   const isLoadingWallet = !privyReady || (authenticated && !walletsReady)
@@ -184,6 +185,7 @@ export function ProfilePagePrivy() {
   const [withdrawStatusesLoading, setWithdrawStatusesLoading] = useState(false)
   const [withdrawingTokenId, setWithdrawingTokenId] = useState<string | null>(null)
   const walletForChain =
+    authenticated &&
     selectedWallet &&
     'address' in selectedWallet &&
     selectedWallet.type === 'ethereum' &&

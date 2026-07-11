@@ -167,6 +167,8 @@ export function useZapTrade(
     isGraduating: boolean
     isGraduated: boolean
     isTrading: boolean
+    liquidityWithdrawn: boolean
+    tradeDisabled: boolean
   } | null>(null)
   const [txState, setTxState] = useState<TradeTxState>({ status: 'idle' })
   const [simulationState, setSimulationState] = useState<TradeSimulationState>({
@@ -184,7 +186,7 @@ export function useZapTrade(
   const walletAddress = wallet?.address as `0x${string}` | undefined
 
   const refreshBalances = useCallback(async () => {
-    if (!walletAddress || !tokenAddress) return
+    if (!walletAddress) return
     try {
       const b = await readBalances(walletAddress, tokenAddress, contracts)
       setBalances({ usdc: b.usdc, token: b.token })
@@ -283,6 +285,9 @@ export function useZapTrade(
 
     if (tokenStatus?.isGraduating) {
       throw new Error('This token is graduating. Please trade again later.')
+    }
+    if (tokenStatus?.tradeDisabled) {
+      throw new Error('This token is voided. Locked liquidity was withdrawn.')
     }
     if (tokenStatus && !tokenStatus.exists) {
       throw new Error('This address is not a valid LEAP token.')
