@@ -482,7 +482,7 @@ func (s *Scanner) syncBondingCurveFromChain(ctx context.Context, token *model.To
 	volumeStr := formatTokenAmount(raised, 6)
 	volume := model.ParseDecimalString(volumeStr)
 	token.BondingCurveVolume = volumeStr
-	progress := volume / float64(common.BondingCurveGraduationTargetUSD) * 100
+	progress := volume / common.GraduationTargetUSD() * 100
 	if progress > 100 {
 		progress = 100
 	}

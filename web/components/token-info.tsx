@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getTokenDetail, type TokenDetailDto } from '@/lib/apis/meme-server/token-detail.api'
+import type { TokenDetailDto } from '@/lib/apis/meme-server/token-detail.api'
 import {
   getLeveragedTokens,
   type LeveragedTokenDto,
@@ -24,6 +24,8 @@ interface TokenInfoProps {
   token: Token
   underlyingPrice?: MarketPrice
   contractAddressOverride?: string | null
+  /** Polled token detail from coin page (single source of truth). */
+  detail: TokenDetailDto | null
   /** Omit outer card shell and section title (e.g. inside coin page tabs). */
   embedded?: boolean
   /** Embed stats above chart and remaining info below (used on coin page). */
@@ -155,6 +157,7 @@ export function TokenInfo({
   token,
   underlyingPrice,
   contractAddressOverride,
+  detail,
   embedded,
   withChart,
 }: TokenInfoProps) {
@@ -172,30 +175,8 @@ export function TokenInfo({
     resolveTokenAddress(token, contractAddressOverride) ??
     `0x${token.id.padStart(40, '0').slice(0, 40)}`
   const maskedContractAddress = formatShortAddress(contractAddress, 6, 4)
-  const fetchAddress = contractAddressOverride?.trim() || token.contractAddress?.trim() || ''
-  const [detail, setDetail] = useState<TokenDetailDto | null>(null)
   const [leveragedTokens, setLeveragedTokens] = useState<LeveragedTokenDto[]>([])
   const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    let disposed = false
-    async function loadDetail() {
-      if (!fetchAddress) {
-        setDetail(null)
-        return
-      }
-      try {
-        const data = await getTokenDetail(fetchAddress)
-        if (!disposed) setDetail(data)
-      } catch {
-        if (!disposed) setDetail(null)
-      }
-    }
-    void loadDetail()
-    return () => {
-      disposed = true
-    }
-  }, [fetchAddress])
 
   useEffect(() => {
     let disposed = false

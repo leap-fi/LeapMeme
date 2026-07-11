@@ -1,11 +1,11 @@
 'use client'
 
 import {
-  BONDING_CURVE_GRADUATION_TARGET_USD,
   formatUsdCompact,
   normalizeBondingCurveProgress,
   resolveBondingCurveVolumeUsd,
 } from '@/lib/apis/meme-server/format'
+import { useProtocolConfig } from '@/contexts/protocol-context'
 import { cn } from '@/lib/utils'
 
 type BondingCurveVolumeBarProps = {
@@ -20,11 +20,13 @@ export function BondingCurveVolumeBar({
   volumeUsd,
   className,
 }: BondingCurveVolumeBarProps) {
-  const targetUsd = BONDING_CURVE_GRADUATION_TARGET_USD
+  const { config } = useProtocolConfig()
+  const targetUsd = config.graduationTargetUsdc
   const currentUsd = resolveBondingCurveVolumeUsd({
     progress,
     graduated: false,
     volumeUsd,
+    graduationTargetUsd: targetUsd,
   })
   const fillPct = normalizeBondingCurveProgress(progress)
 

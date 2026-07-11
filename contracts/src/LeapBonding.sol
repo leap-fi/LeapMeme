@@ -10,7 +10,7 @@ import {ILeapTypes} from "./interfaces/ILeapTypes.sol";
 import {LeapToken} from "./LeapToken.sol";
 import {IUniswapV2Factory, IUniswapV2Pair} from "./external/univ2/IUniswapV2.sol";
 
-interface IMockLT {
+interface IMockLTRedeemable {
     function deposit(uint256 usdcAmount) external returns (uint256 ltOut);
     function redeem(uint256 ltAmount) external returns (uint256 usdcOut);
 }
@@ -52,9 +52,16 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
     mapping(address => uint256) public raisedUsdc; // 真实募集的 USDC（不含虚拟储备）
     mapping(address => bool) private _graduated;
     mapping(address => address) public pairOf;
+    mapping(address => bool) public liquidityWithdrawn;
+
+    /// @dev 允许残留的极小 meme dust（18 位小数），防止 1 wei 永久卡死提取。
+    uint256 public constant WITHDRAW_DUST = 1e12;
 
     event CreatorTransferred(address indexed token, address indexed oldCreator, address indexed newCreator);
     event Graduated(address indexed token, address indexed pair, uint256 ltLiquidity, uint256 tokenLiquidity);
+    event LockedLiquidityWithdrawn(
+        address indexed token, address indexed to, uint256 usdcOut, uint256 memeReclaimed
+    );
 
     modifier onlyZap() {
         require(msg.sender == zap, "zap");
@@ -254,7 +261,7 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
 
         // 募集的 USDC 1:1 兑换为 LT。
         usdc.forceApprove(lt, realUsdc);
-        uint256 ltLiquidity = IMockLT(lt).deposit(realUsdc);
+        uint256 ltLiquidity = IMockLTRedeemable(lt).deposit(realUsdc);
 
         // 建池并注入流动性，LP 永久锁定在本合约。
         IUniswapV2Factory factory = IUniswapV2Factory(IBounceGlobalStorage(bounceGlobalStorage).factory());
@@ -274,7 +281,7 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
     function _graduatedBuy(address token, uint256 usdcIn, address buyer) internal returns (uint256 tokensOut) {
         address lt = ltOf[token];
         usdc.forceApprove(lt, usdcIn);
-        uint256 ltIn = IMockLT(lt).deposit(usdcIn);
+        uint256 ltIn = IMockLTRedeemable(lt).deposit(usdcIn);
 
         address pair = pairOf[token];
         IERC20(lt).safeTransfer(pair, ltIn);
@@ -287,7 +294,7 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
 
         IERC20(token).safeTransfer(pair, tokenIn);
         uint256 ltOut = _swap(pair, token, lt, tokenIn, address(this));
-        usdcOut = IMockLT(lt).redeem(ltOut);
+        usdcOut = IMockLTRedeemable(lt).redeem(ltOut);
     }
 
     /// @dev 输入资产已转入 pair，按 UniV2 0.3% 费率算出并执行 swap。
@@ -332,6 +339,59 @@ contract LeapBonding is ILeapTypes, ReentrancyGuard {
 
     function isGraduated(address token) external view returns (bool) {
         return _graduated[token];
+    }
+
+    /// @dev 池外流通的 meme（非 pair、非本合约持有），供前端判断可否提取锁定流动性。
+    function circulatingMeme(address token) public view returns (uint256) {
+        address pair = pairOf[token];
+        uint256 supply = IERC20(token).totalSupply();
+        uint256 inPair = pair == address(0) ? 0 : IERC20(token).balanceOf(pair);
+        uint256 inBonding = IERC20(token).balanceOf(address(this));
+        uint256 held = inPair + inBonding;
+        return supply > held ? supply - held : 0;
+    }
+
+    /// @dev 是否可提取毕业后锁定的 LP 流动性（池外 meme ≈ 0、未提取过、仍有 LP）。
+    function canWithdrawLockedLiquidity(address token) external view returns (bool) {
+        if (!_graduated[token] || liquidityWithdrawn[token]) return false;
+        address pair = pairOf[token];
+        if (pair == address(0)) return false;
+        if (IERC20(pair).balanceOf(address(this)) == 0) return false;
+        return circulatingMeme(token) <= WITHDRAW_DUST;
+    }
+
+    /// @dev 创作者提取毕业后锁定的 LP：burn LP → LT 兑回 USDC → 退给 creator。
+    ///      要求池外 meme 流通量 ≤ WITHDRAW_DUST（外部持仓已全部卖回池子）。
+    function withdrawLockedLiquidity(address token) external nonReentrant returns (uint256 usdcOut) {
+        require(msg.sender == creatorOf[token], "creator");
+        require(_graduated[token], "not graduated");
+        require(!liquidityWithdrawn[token], "withdrawn");
+
+        address pair = pairOf[token];
+        require(pair != address(0), "no pair");
+        require(circulatingMeme(token) <= WITHDRAW_DUST, "still circulating");
+
+        uint256 lp = IERC20(pair).balanceOf(address(this));
+        require(lp > 0, "no lp");
+
+        liquidityWithdrawn[token] = true;
+
+        IERC20(pair).safeTransfer(pair, lp);
+        IUniswapV2Pair(pair).burn(address(this));
+
+        uint256 memeReclaimed = IERC20(token).balanceOf(address(this));
+
+        address lt = ltOf[token];
+        uint256 ltBal = IERC20(lt).balanceOf(address(this));
+        if (ltBal > 0) {
+            usdcOut = IMockLTRedeemable(lt).redeem(ltBal);
+        }
+
+        if (usdcOut > 0) {
+            usdc.safeTransfer(msg.sender, usdcOut);
+        }
+
+        emit LockedLiquidityWithdrawn(token, msg.sender, usdcOut, memeReclaimed);
     }
 
     function transferCreator(address tokenAddress, address newCreator) external {

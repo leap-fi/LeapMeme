@@ -20,8 +20,8 @@ import { publicClient } from '@/lib/contracts/client'
 import { hyperEvm } from '@/lib/contracts/chain'
 import {
   CONTRACTS,
-  MAX_SEED_USDC,
-  MIN_SEED_USDC,
+  getMaxSeedUsdc,
+  getMinSeedUsdc,
   USDC_DECIMALS,
 } from '@/lib/contracts/config'
 import {
@@ -282,11 +282,11 @@ export function useLaunchToken() {
       if (!walletAddress) throw new Error('Please connect your wallet first.')
       if (!input.tokenName.trim()) throw new Error('Please enter a token name.')
       if (!input.ticker.trim()) throw new Error('Please enter a ticker.')
-      if (input.seedAmountUsd < MIN_SEED_USDC) {
-        throw new Error(`Seed buy must be at least ${MIN_SEED_USDC} USDC.`)
+      if (input.seedAmountUsd < getMinSeedUsdc()) {
+        throw new Error(`Seed buy must be at least ${getMinSeedUsdc()} USDC.`)
       }
-      if (input.seedAmountUsd > MAX_SEED_USDC) {
-        throw new Error(`Seed buy cannot exceed ${MAX_SEED_USDC} USDC.`)
+      if (input.seedAmountUsd > getMaxSeedUsdc()) {
+        throw new Error(`Seed buy cannot exceed ${getMaxSeedUsdc()} USDC.`)
       }
 
       const leverage = parseLeverageMultiplier(input.leverageLabel)

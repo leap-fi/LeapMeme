@@ -1,0 +1,15 @@
+{
+  "_note": "HyperEVM 测试网（chain 998）LEAP 部署清单模板。测试网无官方 USDC/Bounce，脚本会部署 Mock 栈。实际地址以 forge script DeployHyperEVMTestnet.s.sol --broadcast 写入的 hyperevm-testnet.json 为准。",
+  "chainId": 998,
+  "rpcUrl": "https://rpc.hyperliquid-testnet.xyz/evm",
+  "explorerUrl": "https://testnet.purrsec.com",
+  "usdc": "0x0000000000000000000000000000000000000000",
+  "globalStorage": "0x0000000000000000000000000000000000000000",
+  "factory": "0x0000000000000000000000000000000000000000",
+  "zap": "0x0000000000000000000000000000000000000000",
+  "bonding": "0x0000000000000000000000000000000000000000",
+  "router": "0x0000000000000000000000000000000000000000",
+  "creatorRewards": "0x0000000000000000000000000000000000000000",
+  "tokenImplementation": "0x0000000000000000000000000000000000000000",
+  "lts": []
+}

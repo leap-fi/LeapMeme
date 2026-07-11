@@ -1,4 +1,4 @@
-import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
+import { getProtocolConfig } from '@/lib/protocol/runtime'
 
 /** alt.fun 生产合约（HyperEVM）；与 api-pre / 链上存量 token 一致 */
 /** Canonical Multicall3 on HyperEVM (same address as Ethereum mainnet). */
@@ -24,10 +24,6 @@ export const CONTRACTS = {
     ALT_FUN_CONTRACTS.creatorRewards) as `0x${string}`,
 } as const
 
-/** 经济参数由 protocol-profile 单一入口驱动，与 LeapConfig 对齐。 */
-export const MIN_BUY_USDC = PROTOCOL_PROFILE.minBuyUsdc
-export const MIN_SELL_USDC = PROTOCOL_PROFILE.minSellUsdc
-
 export const USDC_DECIMALS = 6
 export const TOKEN_DECIMALS = 18
 
@@ -36,8 +32,22 @@ export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as cons
 /** On-chain `LaunchParams.image` — default until custom uploads are wired. */
 export const DEFAULT_TOKEN_IMAGE = '/logo.svg'
 
-/** Matches `Zap.MIN_SEED_USDC`（0 = 可不垫资发币）。 */
-export const MIN_SEED_USDC = PROTOCOL_PROFILE.minSeedUsdc
+export function getMinBuyUsdc(): number {
+  return getProtocolConfig().minBuyUsdc
+}
 
-/** Matches `Zap.MAX_SEED_USDC`。 */
-export const MAX_SEED_USDC = PROTOCOL_PROFILE.maxSeedUsdc
+export function getMinSellUsdc(): number {
+  return getProtocolConfig().minSellUsdc
+}
+
+export function getMinSeedUsdc(): number {
+  return getProtocolConfig().minSeedUsdc
+}
+
+export function getMaxSeedUsdc(): number {
+  return getProtocolConfig().maxSeedUsdc
+}
+
+export function getMaxTradeUsdc(): number | null {
+  return getProtocolConfig().maxTradeUsdc
+}

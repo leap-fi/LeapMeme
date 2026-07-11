@@ -1,5 +1,6 @@
 'use client'
 
+import { ProtocolProvider } from '@/contexts/protocol-context'
 import { MarketsProvider } from '@/contexts/markets-context'
 import { WalletSessionProvider } from '@/contexts/wallet-session-context'
 import { WalletSessionGuard } from '@/components/wallet-session-guard'
@@ -20,7 +21,11 @@ const FluidBackground = dynamic(
 )
 
 function AppProviders({ children }: { children: React.ReactNode }) {
-  return <MarketsProvider>{children}</MarketsProvider>
+  return (
+    <ProtocolProvider>
+      <MarketsProvider>{children}</MarketsProvider>
+    </ProtocolProvider>
+  )
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {

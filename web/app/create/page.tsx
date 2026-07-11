@@ -20,24 +20,28 @@ import { formatChangePercent } from '@/lib/hyperliquid/format'
 import { DEFAULT_TOKEN_IMAGE, isRenderableImageSrc } from '@/lib/image-src'
 import { usePrivyWalletLogin } from '@/hooks/use-privy-wallet-login'
 import { useLaunchToken, formatLtPairNotFoundMessage } from '@/hooks/use-launch-token'
-import { MAX_SEED_USDC, MIN_SEED_USDC } from '@/lib/contracts/config'
-import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
-import { BONDING_CURVE_GRADUATION_TARGET_USD } from '@/lib/apis/meme-server/format'
+import { useProtocolConfig } from '@/contexts/protocol-context'
 import { fetchAwsUploadTokenApi } from '@/lib/apis/meme-server/aws-token.api'
 
-const seedBuyPresets = PROTOCOL_PROFILE.seedPresets.map((value) => ({
-  label: value === 0 ? 'NONE' : `$${value}`,
-  value,
-}))
-
-const clampSeed = (value: number) => {
-  const min = MIN_SEED_USDC
-  const max = MAX_SEED_USDC
-  if (!Number.isFinite(value)) return min
-  return Math.min(Math.max(value, min), max)
-}
-
 export default function CreatePage() {
+  const { config } = useProtocolConfig()
+  const seedBuyPresets = useMemo(
+    () =>
+      config.seedPresets.map((value) => ({
+        label: value === 0 ? 'NONE' : `$${value}`,
+        value,
+      })),
+    [config.seedPresets],
+  )
+  const clampSeed = useCallback(
+    (value: number) => {
+      const min = config.minSeedUsdc
+      const max = config.maxSeedUsdc
+      if (!Number.isFinite(value)) return min
+      return Math.min(Math.max(value, min), max)
+    },
+    [config.minSeedUsdc, config.maxSeedUsdc],
+  )
   const [direction, setDirection] = useState<'LONG' | 'SHORT'>('LONG')
   const [selectedAsset, setSelectedAsset] = useState('')
   const [leverage, setLeverage] = useState('3×')
@@ -48,10 +52,14 @@ export default function CreatePage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [seedAmount, setSeedAmount] = useState(MIN_SEED_USDC)
+  const [seedAmount, setSeedAmount] = useState(0)
   const [showSocialLinks, setShowSocialLinks] = useState(false)
   const [socialLinks, setSocialLinks] = useState({ twitter: '', telegram: '', website: '' })
   const router = useRouter()
+  useEffect(() => {
+    setSeedAmount(config.minSeedUsdc)
+  }, [config.minSeedUsdc])
+
   const { items: markets, loading: marketsLoading } = useMarketsContext()
   const loginWithWallet = usePrivyWalletLogin()
   const {
@@ -231,13 +239,13 @@ export default function CreatePage() {
   const selectedLeverageNum = parseLeverageMultiplier(leverage)
   const tokensReceived = (seedAmount * 330000).toLocaleString()
   const supplyPercent = ((seedAmount / 3100) * 100).toFixed(1)
-  const curveFilled = ((seedAmount / BONDING_CURVE_GRADUATION_TARGET_USD) * 100).toFixed(1)
+  const curveFilled = ((seedAmount / config.graduationTargetUsdc) * 100).toFixed(1)
 
   const canLaunch =
     tokenName.trim().length > 0 &&
     ticker.trim().length > 0 &&
-    seedAmount >= MIN_SEED_USDC &&
-    seedAmount <= MAX_SEED_USDC &&
+    seedAmount >= config.minSeedUsdc &&
+    seedAmount <= config.maxSeedUsdc &&
     !!ltAddress &&
     !ltLoading
 
@@ -664,7 +672,7 @@ export default function CreatePage() {
                 <div>
                   <h2 className="font-semibold text-foreground">Seed buy</h2>
                   <p className="text-muted-foreground text-sm">
-                    Optional — up to ${MAX_SEED_USDC}
+                    Optional — up to ${config.maxSeedUsdc}
                   </p>
                 </div>
               </div>
@@ -678,8 +686,8 @@ export default function CreatePage() {
                     value={seedAmount}
                     onChange={(e) => setSeedAmount(clampSeed(parseFloat(e.target.value)))}
                     className="bg-transparent outline-none w-full font-mono"
-                    min={MIN_SEED_USDC}
-                    max={MAX_SEED_USDC}
+                    min={config.minSeedUsdc}
+                    max={config.maxSeedUsdc}
                     step={0.05}
                   />
                 </div>
@@ -869,7 +877,7 @@ export default function CreatePage() {
                 </li>
                 <li className="flex gap-2">
                   <span className="text-primary font-mono">3</span>
-                  At ${BONDING_CURVE_GRADUATION_TARGET_USD} raised on the curve, token graduates to DEX
+                  At ${config.graduationTargetUsdc} raised on the curve, token graduates to DEX
                 </li>
               </ol>
             </div>

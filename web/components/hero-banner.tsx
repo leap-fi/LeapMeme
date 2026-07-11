@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { ArrowRight, Rocket, Sparkles } from 'lucide-react'
 import { HeroBannerEffect } from '@/components/hero-banner-effect'
 import { useI18n } from '@/lib/i18n/context'
+import { useProtocolConfig } from '@/contexts/protocol-context'
 
 export function HeroBanner() {
   const { t } = useI18n()
+  const { config } = useProtocolConfig()
 
   return (
     <Link
@@ -28,7 +30,9 @@ export function HeroBanner() {
           <h1 className="mb-1 text-2xl font-bold leading-tight text-foreground md:text-3xl">
             {t('hero.title.a')} <span className="text-primary">{t('hero.title.b')}</span>
           </h1>
-          <p className="text-sm leading-snug text-foreground">{t('hero.subtitle')}</p>
+          <p className="text-sm leading-snug text-foreground">
+            {t('hero.subtitle.lead')} ${config.maxSeedUsdc} {t('hero.subtitle.seedSuffix')}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
           <span className="inline-flex items-center gap-2 rounded-lg border border-foreground px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-foreground transition-transform group-hover:translate-x-0.5">

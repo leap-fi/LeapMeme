@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Copy, ExternalLink, LogOut, Check, Loader2, X, CheckCircle2, XCircle, ChevronRight } from 'lucide-react'
+import { Copy, ExternalLink, LogOut, Check, Loader2, X, CheckCircle2, XCircle, ChevronRight, Coins } from 'lucide-react'
 import { Header } from '@/components/header'
 import { PriceTicker } from '@/components/price-ticker'
 import { Footer } from '@/components/footer'
 import { TokenAvatar } from '@/components/token-avatar'
 import { useMarketsContextOptional } from '@/contexts/markets-context'
 import { buildMarketIconMap, resolveTradingAssetIcon } from '@/lib/trading-asset-icons'
+import { useI18n } from '@/lib/i18n/context'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { WithdrawLockedFundsStatus } from '@/hooks/use-withdraw-locked-funds'
 
-const RELAY_BRIDGE_USDC_URL = 'https://app.openocean.finance/swap/hyperevm/HYPE/USDC'
 const RELAY_BRIDGE_HYPEREVM_URL = `https://app.openocean.finance/swap/hyperevm/USDC/HYPE`
 
 const PROFILE_TABLE_TOKEN_COL =
@@ -42,7 +44,7 @@ const profileSectionLabel =
 const profileTableHeadRow =
   'border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider'
 
-type TabType = 'balances' | 'rewards' | 'transfer' | 'wallet'
+type TabType = 'balances' | 'rewards' | 'transfer' | 'withdraw' | 'wallet'
 
 function stopRowNavigation(e: React.SyntheticEvent) {
   e.preventDefault()
@@ -50,6 +52,7 @@ function stopRowNavigation(e: React.SyntheticEvent) {
 }
 
 function CopyAddressButton({ value }: { value: string }) {
+  const { t } = useI18n()
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -69,8 +72,8 @@ function CopyAddressButton({ value }: { value: string }) {
       type="button"
       onPointerDown={stopRowNavigation}
       onClick={handleCopy}
-      title="Copy address"
-      aria-label="Copy address"
+      title={t('profile.copyAddress')}
+      aria-label={t('profile.copyAddress')}
       className="relative z-30 shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
     >
       {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
@@ -147,6 +150,15 @@ export type ProfilePageViewProps = {
   transferCreatorTxHash?: string | null
   onTransferCreatorRole?: (tokenId: string, newOwner: string) => void
   onDismissTransferCreatorTxModal?: () => void
+  withdrawStatuses?: Record<string, WithdrawLockedFundsStatus>
+  withdrawStatusesLoading?: boolean
+  withdrawingTokenId?: string | null
+  withdrawTxStatus?: 'idle' | 'withdrawing' | 'success' | 'error'
+  withdrawTxMessage?: string | null
+  withdrawTxHash?: string | null
+  withdrawUsdcOut?: string | null
+  onWithdrawLockedFunds?: (tokenId: string) => void
+  onDismissWithdrawTxModal?: () => void
   walletUnavailable?: boolean
   needsReconnect?: boolean
   onConnect?: () => void
@@ -189,11 +201,21 @@ export function ProfilePageView({
   transferCreatorTxHash = null,
   onTransferCreatorRole,
   onDismissTransferCreatorTxModal,
+  withdrawStatuses = {},
+  withdrawStatusesLoading = false,
+  withdrawingTokenId = null,
+  withdrawTxStatus = 'idle',
+  withdrawTxMessage = null,
+  withdrawTxHash = null,
+  withdrawUsdcOut = null,
+  onWithdrawLockedFunds,
+  onDismissWithdrawTxModal,
   walletUnavailable = false,
   needsReconnect = false,
   onConnect,
   onDisconnect,
 }: ProfilePageViewProps) {
+  const { t } = useI18n()
   const [activeTab, setActiveTab] = useState<TabType>('balances')
   const [copied, setCopied] = useState(false)
 
@@ -205,10 +227,11 @@ export function ProfilePageView({
   }
 
   const tabs: { id: TabType; label: string }[] = [
-    { id: 'balances', label: 'Balances' },
-    { id: 'rewards', label: 'Creator Rewards' },
-    { id: 'transfer', label: 'Transfer Ownership' },
-    { id: 'wallet', label: 'Manage Wallet' },
+    { id: 'balances', label: t('profile.tab.balances') },
+    { id: 'rewards', label: t('profile.tab.rewards') },
+    { id: 'transfer', label: t('profile.tab.transfer') },
+    { id: 'withdraw', label: t('profile.tab.withdraw') },
+    { id: 'wallet', label: t('profile.tab.wallet') },
   ]
 
   return (
@@ -219,23 +242,23 @@ export function ProfilePageView({
       <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-8">
         {walletUnavailable && (
           <div className="mb-6 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-            Wallet connect is not configured. Set{' '}
+            {t('profile.walletNotConfigured.lead')}{' '}
             <code className="text-foreground">NEXT_PUBLIC_PRIVY_APP_ID</code> in{' '}
-            <code className="text-foreground">.env.local</code> to enable login and live balances.
+            <code className="text-foreground">.env.local</code> {t('profile.walletNotConfigured.tail')}
           </div>
         )}
 
         {needsReconnect && onConnect && (
           <div className="mb-6 flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-foreground">
-              Wallet disconnected or locked. Reconnect to refresh balances and sign transactions.
+              {t('profile.reconnect.message')}
             </p>
             <button
               type="button"
               onClick={onConnect}
               className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
             >
-              Reconnect wallet
+              {t('profile.reconnect.button')}
             </button>
           </div>
         )}
@@ -250,7 +273,7 @@ export function ProfilePageView({
             </div>
 
             <div>
-              <p className={`${profileSectionLabel} mb-1`}>Profile</p>
+              <p className={`${profileSectionLabel} mb-1`}>{t('profile.title')}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 {isLoadingWallet ? (
                   <div className="h-7 w-32 bg-secondary rounded animate-pulse" aria-hidden />
@@ -272,7 +295,7 @@ export function ProfilePageView({
                       rel="noopener noreferrer"
                       className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                     >
-                      View on hyperevm scan
+                      {t('profile.viewOnScan')}
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   </>
@@ -283,7 +306,7 @@ export function ProfilePageView({
                     onClick={onConnect}
                     className="text-xs text-primary hover:underline font-semibold"
                   >
-                    Connect wallet
+                    {t('profile.connectWallet')}
                   </button>
                 )}
               </div>
@@ -297,7 +320,7 @@ export function ProfilePageView({
               className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
             >
               <LogOut className="w-4 h-4" />
-              <span className="text-sm font-semibold">Disconnect</span>
+              <span className="text-sm font-semibold">{t('profile.disconnect')}</span>
             </button>
           )}
         </div>
@@ -373,6 +396,23 @@ export function ProfilePageView({
             onDismissTxModal={onDismissTransferCreatorTxModal}
           />
         )}
+        {activeTab === 'withdraw' && (
+          <WithdrawLockedFundsTab
+            authenticated={authenticated}
+            createdTokens={createdTokens}
+            loading={createdTokensLoading}
+            error={createdTokensError}
+            statuses={withdrawStatuses}
+            statusesLoading={withdrawStatusesLoading}
+            withdrawingTokenId={withdrawingTokenId}
+            txStatus={withdrawTxStatus}
+            txMessage={withdrawTxMessage}
+            txHash={withdrawTxHash}
+            usdcOut={withdrawUsdcOut}
+            onWithdraw={onWithdrawLockedFunds}
+            onDismissTxModal={onDismissWithdrawTxModal}
+          />
+        )}
       </main>
 
       <Footer />
@@ -393,6 +433,7 @@ function ManageWalletTab({
   loading: boolean
   error: string | null
 }) {
+  const { t } = useI18n()
   const marketsContext = useMarketsContextOptional()
   const marketIconMap = useMemo(
     () => buildMarketIconMap(marketsContext?.markets ?? []),
@@ -412,24 +453,24 @@ function ManageWalletTab({
   return (
     <div className="space-y-6">
       {!authenticated && (
-        <div className="px-2 py-2 text-sm text-muted-foreground">Connect wallet to load on-chain balances.</div>
+        <div className="px-2 py-2 text-sm text-muted-foreground">{t('profile.wallet.connectPrompt')}</div>
       )}
       {authenticated && error && (
         <div className="px-2 py-2 text-sm text-destructive">{error}</div>
       )}
       <div className="flex items-center justify-between py-4 border-b border-border">
         <div>
-          <p className={`${profileSectionLabel} mb-1`}>Network</p>
+          <p className={`${profileSectionLabel} mb-1`}>{t('profile.wallet.network')}</p>
           <p className="text-lg font-bold text-foreground">HyperEVM</p>
         </div>
         <div className="text-right">
-          <p className={`${profileSectionLabel} mb-1`}>Chain ID</p>
+          <p className={`${profileSectionLabel} mb-1`}>{t('profile.wallet.chainId')}</p>
           <p className="text-lg font-bold text-foreground">999</p>
         </div>
       </div>
 
       <div className="border-b border-border pb-6">
-        <p className={`${profileSectionLabel} mb-4`}>Assets needed for trading</p>
+        <p className={`${profileSectionLabel} mb-4`}>{t('profile.wallet.assetsTitle')}</p>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between py-4 border-b border-border">
@@ -443,27 +484,17 @@ function ManageWalletTab({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-foreground">USDC</span>
-                  <span className="hidden md:inline text-xs font-semibold text-primary">Trade currency</span>
+                  <span className="hidden md:inline text-xs font-semibold text-primary">{t('profile.wallet.usdc.tradeCurrency')}</span>
                   <span className="hidden md:inline text-xs font-medium text-muted-foreground bg-secondary px-2 py-0.5 rounded">
-                    ERC-20
+                    {t('profile.wallet.erc20')}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">USD Coin</p>
+                <p className="text-sm text-muted-foreground">{t('profile.wallet.usdc.name')}</p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
-              <div className="text-right whitespace-nowrap">
-                <span className="font-bold text-foreground">{displayUsdc}</span>
-                <span className="text-muted-foreground ml-1 text-sm">USDC</span>
-              </div>
-              <a
-                href={RELAY_BRIDGE_USDC_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 border border-border text-foreground rounded-lg hover:bg-secondary transition-colors text-sm font-semibold whitespace-nowrap"
-              >
-                Get USDC
-              </a>
+            <div className="shrink-0 text-right whitespace-nowrap">
+              <span className="font-bold text-foreground">{displayUsdc}</span>
+              <span className="text-muted-foreground ml-1 text-sm">USDC</span>
             </div>
           </div>
 
@@ -478,43 +509,33 @@ function ManageWalletTab({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-foreground">HYPE</span>
-                  <span className="hidden md:inline text-xs font-semibold text-primary">Gas token</span>
+                  <span className="hidden md:inline text-xs font-semibold text-primary">{t('profile.wallet.hype.gasToken')}</span>
                   <span className="hidden md:inline text-xs font-medium text-muted-foreground bg-secondary px-2 py-0.5 rounded">
-                    Native
+                    {t('profile.wallet.native')}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">Hyperliquid</p>
+                <p className="text-sm text-muted-foreground">{t('profile.wallet.hype.name')}</p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
-              <div className="text-right whitespace-nowrap">
-                <span className="font-bold text-foreground">{displayHype}</span>
-                <span className="text-muted-foreground ml-1 text-sm">HYPE</span>
-              </div>
-              <a
-                href={RELAY_BRIDGE_HYPEREVM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 border border-border text-foreground rounded-lg hover:bg-secondary transition-colors text-sm font-semibold whitespace-nowrap"
-              >
-                Get gas
-              </a>
+            <div className="shrink-0 text-right whitespace-nowrap">
+              <span className="font-bold text-foreground">{displayHype}</span>
+              <span className="text-muted-foreground ml-1 text-sm">HYPE</span>
             </div>
           </div>
         </div>
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Bridge from Ethereum, Arbitrum, Base, Solana and 20+ other chains via{' '}
+        {t('profile.wallet.bridge.lead')}{' '}
         <a
           href={RELAY_BRIDGE_HYPEREVM_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="text-primary hover:underline"
         >
-          Relay
+          {t('profile.wallet.bridge.link')}
         </a>
-        . Funds arrive directly in your connected wallet on HyperEVM.
+        {t('profile.wallet.bridge.tail')}
       </p>
     </div>
   )
@@ -531,6 +552,7 @@ function BalancesTab({
   loading: boolean
   error: string | null
 }) {
+  const { t } = useI18n()
   const router = useRouter()
   const totalValue = balances.reduce((sum, item) => sum + item.valueNumber, 0)
   const totalValueText = `$${totalValue.toLocaleString(undefined, {
@@ -542,14 +564,14 @@ function BalancesTab({
   if (!authenticated) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        Connect wallet to view balances.
+        {t('profile.balances.connectPrompt')}
       </div>
     )
   }
 
   if (loading) {
     return (
-      <div className="py-12 text-center text-sm text-muted-foreground">Loading balances...</div>
+      <div className="py-12 text-center text-sm text-muted-foreground">{t('profile.balances.loading')}</div>
     )
   }
 
@@ -560,15 +582,15 @@ function BalancesTab({
   if (showEmptyState) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-sm font-semibold text-foreground mb-4">No tokens yet</p>
+        <p className="text-sm font-semibold text-foreground mb-4">{t('profile.balances.empty.title')}</p>
         <p className="text-sm text-muted-foreground max-w-lg mb-6">
-          Tokens you hold from the bonding curve or post-graduation pools will appear here.
+          {t('profile.balances.empty.desc')}
         </p>
         <Link
           href="/"
           className="px-5 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
         >
-          Browse tokens
+          {t('profile.balances.empty.cta')}
         </Link>
       </div>
     )
@@ -577,7 +599,7 @@ function BalancesTab({
   return (
     <div className="space-y-6">
       <div className="border-b border-border pb-6">
-        <p className={`${profileSectionLabel} mb-2`}>Total value</p>
+        <p className={`${profileSectionLabel} mb-2`}>{t('profile.balances.totalValue')}</p>
         <p className="text-3xl font-bold text-foreground">{totalValueText}</p>
       </div>
 
@@ -588,12 +610,12 @@ function BalancesTab({
               <th
                 className={`${PROFILE_TABLE_STICKY_HEAD_CELL} ${PROFILE_TABLE_TOKEN_COL} py-2 pl-2 pr-4`}
               >
-                Token
+                {t('profile.table.token')}
               </th>
-              <th className={`${PROFILE_TABLE_ADDRESS_COL} py-2`}>Address</th>
-              <th className={`${PROFILE_TABLE_AMOUNT_COL} py-2`}>Amount</th>
-              <th className={`${PROFILE_TABLE_24H_COL} py-2`}>24H</th>
-              <th className={`${PROFILE_TABLE_VALUE_COL} py-2`}>Value</th>
+              <th className={`${PROFILE_TABLE_ADDRESS_COL} py-2`}>{t('profile.table.address')}</th>
+              <th className={`${PROFILE_TABLE_AMOUNT_COL} py-2`}>{t('profile.table.amount')}</th>
+              <th className={`${PROFILE_TABLE_24H_COL} py-2`}>{t('profile.table.24h')}</th>
+              <th className={`${PROFILE_TABLE_VALUE_COL} py-2`}>{t('profile.table.value')}</th>
             </tr>
           </thead>
           <tbody>
@@ -697,12 +719,15 @@ function CreatorRewardsTab({
   onClaim?: () => void
   onDismissTxModal?: () => void
 }) {
+  const { t } = useI18n()
   const router = useRouter()
   const claimableNumber = Number.parseFloat(claimable.replace(/,/g, '')) || 0
   const canClaim =
     authenticated && claimableNumber > 0 && !rewardsLoading && !claiming
   const claimableLabel = `$${claimable}`
-  const claimButtonLabel = claiming ? 'Claiming...' : `Claim $${claimable} USDC`
+  const claimButtonLabel = claiming
+    ? t('profile.rewards.claiming')
+    : `${t('profile.rewards.claim')} $${claimable} USDC`
   const showTxModal = txStatus !== 'idle'
   const isPending = txStatus === 'claiming'
   const showNoTokensEmptyState =
@@ -711,7 +736,7 @@ function CreatorRewardsTab({
   if (!authenticated) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        Connect wallet to view creator rewards.
+        {t('profile.rewards.connectPrompt')}
       </div>
     )
   }
@@ -719,7 +744,7 @@ function CreatorRewardsTab({
   if (loading) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        Loading creator rewards...
+        {t('profile.rewards.loading')}
       </div>
     )
   }
@@ -733,16 +758,15 @@ function CreatorRewardsTab({
   if (showNoTokensEmptyState) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-sm font-semibold text-foreground mb-4">No creator rewards yet</p>
+        <p className="text-sm font-semibold text-foreground mb-4">{t('profile.rewards.empty.title')}</p>
         <p className="text-sm text-muted-foreground max-w-lg mb-6">
-          Per-token trading volume and accrued fees will appear here once your launched tokens
-          generate activity.
+          {t('profile.rewards.empty.desc')}
         </p>
         <Link
           href="/create"
           className="px-5 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
         >
-          Launch a token
+          {t('profile.rewards.empty.cta')}
         </Link>
       </div>
     )
@@ -751,7 +775,7 @@ function CreatorRewardsTab({
   return (
     <div className="space-y-8">
       <div className="flex flex-col items-center py-8 border-b border-border">
-        <p className={`${profileSectionLabel} mb-2`}>Claimable</p>
+        <p className={`${profileSectionLabel} mb-2`}>{t('profile.rewards.claimable')}</p>
         <p className="text-5xl font-bold text-primary mb-6">{claimableLabel}</p>
         <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:justify-center">
           <button
@@ -772,17 +796,17 @@ function CreatorRewardsTab({
             rel="noopener noreferrer"
             className="mt-3 text-xs text-primary hover:underline flex items-center gap-1"
           >
-            View claim transaction
+            {t('profile.rewards.viewClaimTx')}
             <ExternalLink className="w-3 h-3" />
           </a>
         )}
         <div className="flex gap-16 mt-8">
           <div className="text-center">
-            <p className={`${profileSectionLabel} mb-1`}>Total earned</p>
+            <p className={`${profileSectionLabel} mb-1`}>{t('profile.rewards.totalEarned')}</p>
             <p className="text-xl font-bold text-foreground">${totalEarned}</p>
           </div>
           <div className="text-center">
-            <p className={`${profileSectionLabel} mb-1`}>Previously claimed</p>
+            <p className={`${profileSectionLabel} mb-1`}>{t('profile.rewards.previouslyClaimed')}</p>
             <p className="text-xl font-bold text-foreground">${previouslyClaimed}</p>
           </div>
         </div>
@@ -795,11 +819,11 @@ function CreatorRewardsTab({
               <th
                 className={`${PROFILE_TABLE_STICKY_HEAD_CELL} ${CREATED_TOKENS_TABLE_TOKEN_COL} py-2 pl-2 pr-4`}
               >
-                Token
+                {t('profile.table.token')}
               </th>
-              <th className={`${CREATED_TOKENS_TABLE_ADDRESS_COL} py-2`}>Address</th>
-              <th className={`${CREATED_TOKENS_TABLE_VOLUME_COL} py-2`}>24h Volume</th>
-              <th className={`${CREATED_TOKENS_TABLE_EARNED_COL} py-2`}>Earned</th>
+              <th className={`${CREATED_TOKENS_TABLE_ADDRESS_COL} py-2`}>{t('profile.table.address')}</th>
+              <th className={`${CREATED_TOKENS_TABLE_VOLUME_COL} py-2`}>{t('profile.table.volume24h')}</th>
+              <th className={`${CREATED_TOKENS_TABLE_EARNED_COL} py-2`}>{t('profile.table.earned')}</th>
             </tr>
           </thead>
           <tbody>
@@ -864,7 +888,7 @@ function CreatorRewardsTab({
       </div>
 
       <p className="text-sm text-muted-foreground">
-        <span className="text-primary">33%</span> of all trading fees go to token creators. Fees accrue in USDC and can be claimed anytime.
+        {t('profile.rewards.feeNote')}
       </p>
 
       {showTxModal && (
@@ -872,13 +896,13 @@ function CreatorRewardsTab({
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-3 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Claim Rewards</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('profile.rewards.modal.title')}</p>
                 <h3 className="mt-1 text-lg font-semibold text-foreground">
                   {isPending
-                    ? 'Transaction In Progress'
+                    ? t('profile.tx.inProgress')
                     : txStatus === 'success'
-                      ? 'Transaction Successful'
-                      : 'Transaction Failed'}
+                      ? t('profile.tx.success')
+                      : t('profile.tx.failed')}
                 </h3>
               </div>
               <button
@@ -900,7 +924,7 @@ function CreatorRewardsTab({
                       <span className="absolute inline-flex h-6 w-6 rounded-full bg-primary/20" />
                       <Loader2 className="relative h-4 w-4 animate-spin text-primary" />
                     </div>
-                    <p>Confirm the claim transaction in your wallet...</p>
+                    <p>{t('profile.tx.confirmClaim')}</p>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
@@ -910,13 +934,13 @@ function CreatorRewardsTab({
               {txStatus === 'error' && (
                 <div className="flex items-start gap-3">
                   <XCircle className="mt-0.5 h-5 w-5 animate-pulse text-destructive" />
-                  <p className="text-destructive">{txMessage ?? 'Claim failed.'}</p>
+                  <p className="text-destructive">{txMessage ?? t('profile.tx.claimFailed')}</p>
                 </div>
               )}
               {txStatus === 'success' && (
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="h-5 w-5 animate-bounce text-primary" />
-                  <p className="text-primary">Claim completed and confirmed on-chain.</p>
+                  <p className="text-primary">{t('profile.tx.claimSuccess')}</p>
                 </div>
               )}
             </div>
@@ -928,7 +952,7 @@ function CreatorRewardsTab({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
               >
-                View Transaction Details
+                {t('profile.tx.viewDetails')}
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -939,7 +963,7 @@ function CreatorRewardsTab({
               disabled={isPending}
               className="mt-4 w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isPending ? 'Processing...' : 'Close'}
+              {isPending ? t('profile.tx.processing') : t('profile.tx.close')}
             </button>
           </div>
         </div>
@@ -971,6 +995,7 @@ function TransferOwnershipTab({
   onTransfer?: (tokenId: string, newOwner: string) => void
   onDismissTxModal?: () => void
 }) {
+  const { t } = useI18n()
   const [newOwner, setNewOwner] = useState('')
   const [selectedTokenId, setSelectedTokenId] = useState<string>('')
 
@@ -996,7 +1021,7 @@ function TransferOwnershipTab({
   const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(newOwnerTrimmed)
   const addressError =
     newOwnerTrimmed.length > 0 && !isValidAddress
-      ? 'Enter a valid 40-character hex address (0x...)'
+      ? t('profile.transfer.addressError')
       : null
   const canTransfer =
     authenticated &&
@@ -1012,7 +1037,7 @@ function TransferOwnershipTab({
   if (!authenticated) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        Connect wallet to view created tokens.
+        {t('profile.transfer.connectPrompt')}
       </div>
     )
   }
@@ -1020,7 +1045,7 @@ function TransferOwnershipTab({
   if (loading) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        Loading created tokens...
+        {t('profile.transfer.loading')}
       </div>
     )
   }
@@ -1032,10 +1057,9 @@ function TransferOwnershipTab({
   if (showNoTokensEmptyState) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-sm font-semibold text-foreground mb-4">No tokens to transfer</p>
+        <p className="text-sm font-semibold text-foreground mb-4">{t('profile.transfer.empty.title')}</p>
         <p className="text-sm text-muted-foreground max-w-lg">
-          Tokens you&apos;ve launched will appear here. You can transfer the creator role to a
-          different wallet at any time.
+          {t('profile.transfer.empty.desc')}
         </p>
       </div>
     )
@@ -1044,19 +1068,18 @@ function TransferOwnershipTab({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-2">Transfer creator role</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-2">{t('profile.transfer.title')}</h2>
         <p className="text-sm text-muted-foreground max-w-2xl">
-          Choose a token you launched, enter the new creator wallet, and confirm in your wallet.
-          Future trading fees for that token will go to the new address.
+          {t('profile.transfer.desc')}
         </p>
       </div>
 
       <div className="rounded-lg border-l-2 border-amber-500 bg-amber-500/5 p-4">
-        <p className={`${profileSectionLabel} text-amber-500 mb-1`}>Before you transfer</p>
+        <p className={`${profileSectionLabel} text-amber-500 mb-1`}>{t('profile.transfer.beforeTitle')}</p>
         <p className="text-sm text-muted-foreground">
-          Claim any pending USDC on the{' '}
-          <span className="text-foreground font-medium">Creator Rewards</span> tab first — unclaimed
-          rewards stay with your current wallet, not the new creator.
+          {t('profile.transfer.beforeDesc.lead')}{' '}
+          <span className="text-foreground font-medium">{t('profile.transfer.beforeDesc.tab')}</span>{' '}
+          {t('profile.transfer.beforeDesc.tail')}
         </p>
       </div>
 
@@ -1064,12 +1087,12 @@ function TransferOwnershipTab({
         {/* Token picker */}
         <div className="space-y-3">
           <p className={profileSectionLabel}>
-            {createdTokens.length === 1 ? 'Your token' : 'Select a token'}
+            {createdTokens.length === 1 ? t('profile.transfer.yourToken') : t('profile.transfer.selectToken')}
           </p>
           <div
             className="space-y-2"
             role="radiogroup"
-            aria-label="Token to transfer creator role"
+            aria-label={t('profile.transfer.tokenAriaLabel')}
           >
             {createdTokens.map((token) => {
               const isSelected = token.id === selectedTokenId
@@ -1126,7 +1149,7 @@ function TransferOwnershipTab({
         <div className="lg:sticky lg:top-24">
           <div className="rounded-lg border border-border bg-card p-5 space-y-5 shadow-sm">
             <div>
-              <p className={`${profileSectionLabel} mb-3`}>Transfer details</p>
+              <p className={`${profileSectionLabel} mb-3`}>{t('profile.transfer.details')}</p>
               {selectedToken ? (
                 <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary/30 p-3">
                   <TokenAvatar
@@ -1148,7 +1171,7 @@ function TransferOwnershipTab({
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Select a token from the list.</p>
+                <p className="text-sm text-muted-foreground">{t('profile.transfer.selectFromList')}</p>
               )}
             </div>
 
@@ -1157,7 +1180,7 @@ function TransferOwnershipTab({
                 htmlFor="transfer-new-creator"
                 className={profileSectionLabel}
               >
-                New creator wallet
+                {t('profile.transfer.newCreatorLabel')}
               </label>
               <input
                 id="transfer-new-creator"
@@ -1174,7 +1197,7 @@ function TransferOwnershipTab({
                 <p className="text-xs text-destructive">{addressError}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  The new wallet will receive all future creator fees for this token.
+                  {t('profile.transfer.newCreatorHint')}
                 </p>
               )}
             </div>
@@ -1187,10 +1210,10 @@ function TransferOwnershipTab({
             >
               {transferring && <Loader2 className="h-4 w-4 animate-spin" />}
               {transferring
-                ? 'Confirm in wallet…'
+                ? t('profile.transfer.confirmInWallet')
                 : selectedToken
-                  ? `Transfer ${selectedToken.symbol} creator role`
-                  : 'Transfer creator role'}
+                  ? `${t('profile.transfer.transfer')} ${selectedToken.symbol} ${t('profile.transfer.creatorRole')}`
+                  : `${t('profile.transfer.transfer')} ${t('profile.transfer.creatorRole')}`}
             </button>
           </div>
         </div>
@@ -1201,13 +1224,13 @@ function TransferOwnershipTab({
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl">
             <div className="mb-3 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Transfer Creator Role</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('profile.transfer.modal.title')}</p>
                 <h3 className="mt-1 text-lg font-semibold text-foreground">
                   {isPending
-                    ? 'Transaction In Progress'
+                    ? t('profile.tx.inProgress')
                     : txStatus === 'success'
-                      ? 'Transaction Successful'
-                      : 'Transaction Failed'}
+                      ? t('profile.tx.success')
+                      : t('profile.tx.failed')}
                 </h3>
               </div>
               <button
@@ -1229,7 +1252,7 @@ function TransferOwnershipTab({
                       <span className="absolute inline-flex h-6 w-6 rounded-full bg-primary/20" />
                       <Loader2 className="relative h-4 w-4 animate-spin text-primary" />
                     </div>
-                    <p>Confirm the transfer in your wallet...</p>
+                    <p>{t('profile.transfer.confirmInWalletModal')}</p>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
@@ -1239,13 +1262,13 @@ function TransferOwnershipTab({
               {txStatus === 'error' && (
                 <div className="flex items-start gap-3">
                   <XCircle className="mt-0.5 h-5 w-5 animate-pulse text-destructive" />
-                  <p className="text-destructive">{txMessage ?? 'Transfer failed.'}</p>
+                  <p className="text-destructive">{txMessage ?? t('profile.transfer.failed')}</p>
                 </div>
               )}
               {txStatus === 'success' && (
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="h-5 w-5 animate-bounce text-primary" />
-                  <p className="text-primary">Creator role transferred on-chain.</p>
+                  <p className="text-primary">{t('profile.transfer.success')}</p>
                 </div>
               )}
             </div>
@@ -1253,16 +1276,16 @@ function TransferOwnershipTab({
             {selectedToken && (
               <div className="mb-4 space-y-2 rounded-lg border border-border bg-secondary/30 p-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Token</span>
+                  <span className="text-muted-foreground">{t('profile.table.token')}</span>
                   <span className="font-semibold text-foreground">{selectedToken.symbol}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground shrink-0">Contract</span>
+                  <span className="text-muted-foreground shrink-0">{t('profile.transfer.modal.contract')}</span>
                   <span className="text-foreground font-mono text-xs truncate">{selectedToken.rawAddress}</span>
                 </div>
                 {newOwnerTrimmed && (
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground shrink-0">New creator</span>
+                    <span className="text-muted-foreground shrink-0">{t('profile.transfer.modal.newCreator')}</span>
                     <span className="text-foreground font-mono text-xs truncate">{newOwnerTrimmed}</span>
                   </div>
                 )}
@@ -1276,7 +1299,7 @@ function TransferOwnershipTab({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
               >
-                View Transaction Details
+                {t('profile.tx.viewDetails')}
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
@@ -1287,7 +1310,254 @@ function TransferOwnershipTab({
               disabled={isPending}
               className="mt-4 w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isPending ? 'Processing...' : 'Close'}
+              {isPending ? t('profile.tx.processing') : t('profile.tx.close')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WithdrawLockedFundsTab({
+  authenticated,
+  createdTokens,
+  loading,
+  error,
+  statuses,
+  statusesLoading,
+  withdrawingTokenId,
+  txStatus,
+  txMessage,
+  txHash,
+  usdcOut,
+  onWithdraw,
+  onDismissTxModal,
+}: {
+  authenticated: boolean
+  createdTokens: ProfileCreatedTokenItem[]
+  loading: boolean
+  error: string | null
+  statuses: Record<string, WithdrawLockedFundsStatus>
+  statusesLoading: boolean
+  withdrawingTokenId: string | null
+  txStatus: 'idle' | 'withdrawing' | 'success' | 'error'
+  txMessage: string | null
+  txHash: string | null
+  usdcOut: string | null
+  onWithdraw?: (tokenId: string) => void
+  onDismissTxModal?: () => void
+}) {
+  const { t } = useI18n()
+  const showTxModal = txStatus !== 'idle'
+  const isPending = txStatus === 'withdrawing'
+  const showNoTokensEmptyState =
+    authenticated && !loading && !error && createdTokens.length === 0
+
+  if (!authenticated) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {t('profile.withdraw.connectPrompt')}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {t('profile.withdraw.loading')}
+      </div>
+    )
+  }
+
+  if (error) {
+    return <div className="py-12 text-center text-sm text-destructive">{error}</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-2">{t('profile.withdraw.title')}</h2>
+        <p className="text-sm text-muted-foreground max-w-2xl">{t('profile.withdraw.desc')}</p>
+      </div>
+
+      <div className="rounded-lg border-l-2 border-amber-500 bg-amber-500/5 p-4">
+        <p className={`${profileSectionLabel} text-amber-500 mb-1`}>{t('profile.withdraw.howTitle')}</p>
+        <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
+          <li>{t('profile.withdraw.step1')}</li>
+          <li>{t('profile.withdraw.step2')}</li>
+          <li>{t('profile.withdraw.step3')}</li>
+        </ol>
+      </div>
+
+      {showNoTokensEmptyState ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-sm font-semibold text-foreground mb-4">{t('profile.withdraw.empty.title')}</p>
+          <p className="text-sm text-muted-foreground max-w-lg">{t('profile.withdraw.empty.desc')}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {createdTokens.map((token) => {
+            const status = statuses[token.id]
+            const isThisWithdrawing = withdrawingTokenId === token.id
+            const canWithdraw = !!status?.withdrawable && !isThisWithdrawing
+            const tipKey = status?.reasonKey
+            const statusLabel = status?.withdrawn
+              ? t('profile.withdraw.status.withdrawn')
+              : status?.withdrawable
+                ? t('profile.withdraw.status.ready')
+                : statusesLoading && !status
+                  ? t('profile.withdraw.status.checking')
+                  : tipKey
+                    ? t(tipKey)
+                    : t('profile.withdraw.status.notReady')
+
+            const withdrawButton = (
+              <button
+                type="button"
+                disabled={!canWithdraw}
+                onClick={() => onWithdraw?.(token.id)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isThisWithdrawing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Coins className="h-4 w-4" />
+                )}
+                {status?.withdrawn
+                  ? t('profile.withdraw.button.withdrawn')
+                  : isThisWithdrawing
+                    ? t('profile.withdraw.button.withdrawing')
+                    : t('profile.withdraw.button')}
+              </button>
+            )
+
+            return (
+              <div
+                key={token.id}
+                className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <TokenAvatar
+                    image={token.image}
+                    symbol={token.symbol}
+                    className="w-10 h-10 shrink-0 rounded-lg bg-card border border-border"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-foreground truncate">{token.symbol}</p>
+                    <p className="text-xs text-muted-foreground truncate">{token.name}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span
+                    className={`max-w-[14rem] text-xs font-medium ${status?.withdrawn
+                        ? 'text-muted-foreground'
+                        : status?.withdrawable
+                          ? 'text-primary'
+                          : 'text-muted-foreground'
+                      }`}
+                  >
+                    {statusLabel}
+                  </span>
+                  {!canWithdraw && tipKey ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">{withdrawButton}</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        {t(tipKey)}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    withdrawButton
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {showTxModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {t('profile.withdraw.modal.title')}
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-foreground">
+                  {isPending
+                    ? t('profile.tx.inProgress')
+                    : txStatus === 'success'
+                      ? t('profile.tx.success')
+                      : t('profile.tx.failed')}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={onDismissTxModal}
+                disabled={isPending}
+                className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-border bg-secondary/50 p-4 text-sm">
+              {isPending && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-foreground">
+                    <div className="relative flex h-8 w-8 items-center justify-center">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/30" />
+                      <span className="absolute inline-flex h-6 w-6 rounded-full bg-primary/20" />
+                      <Loader2 className="relative h-4 w-4 animate-spin text-primary" />
+                    </div>
+                    <p>{t('profile.withdraw.confirmInWallet')}</p>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
+                  </div>
+                </div>
+              )}
+              {txStatus === 'error' && (
+                <div className="flex items-start gap-3">
+                  <XCircle className="mt-0.5 h-5 w-5 animate-pulse text-destructive" />
+                  <p className="text-destructive">{txMessage ?? t('profile.withdraw.failed')}</p>
+                </div>
+              )}
+              {txStatus === 'success' && (
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 animate-bounce text-primary" />
+                  <p className="text-primary">
+                    {usdcOut
+                      ? t('profile.withdraw.success.amount').replace('{amount}', usdcOut)
+                      : t('profile.withdraw.success')}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {txStatus === 'success' && txHash && (
+              <a
+                href={`https://hyperevmscan.io/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                {t('profile.tx.viewDetails')}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+
+            <button
+              type="button"
+              onClick={onDismissTxModal}
+              disabled={isPending}
+              className="mt-4 w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isPending ? t('profile.tx.processing') : t('profile.tx.close')}
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { PROTOCOL_PROFILE } from '@/lib/protocol-profile'
+import { getProtocolConfig } from '@/lib/protocol/runtime'
 
 export function toNumber(value: number | string | null | undefined): number {
   if (value == null || value === '') return 0
@@ -19,8 +19,10 @@ export function normalizeBondingCurveProgress(
   return raw
 }
 
-/** Graduation threshold on the bonding curve (USD). Align with LeapBonding.GRADUATION_USDC / backend BondingCurveGraduationTargetUSD. */
-export const BONDING_CURVE_GRADUATION_TARGET_USD = PROTOCOL_PROFILE.graduationTargetUsdc
+/** Graduation threshold on the bonding curve (USD). From runtime protocol config. */
+export function bondingCurveGraduationTargetUsd(): number {
+  return getProtocolConfig().graduationTargetUsdc
+}
 
 export function pickBondingCurveVolumeUsd(
   detail:
@@ -50,17 +52,18 @@ export function resolveBondingCurveVolumeUsd(params: {
   progress: number
   graduated: boolean
   volumeUsd?: number | string | null
+  graduationTargetUsd?: number
 }): number {
+  const graduationTarget =
+    params.graduationTargetUsd ?? bondingCurveGraduationTargetUsd()
   const { progress, graduated, volumeUsd } = params
   if (volumeUsd != null && volumeUsd !== '') {
     const fromApi = Math.max(0, toNumber(volumeUsd))
-    return graduated
-      ? BONDING_CURVE_GRADUATION_TARGET_USD
-      : Math.min(fromApi, BONDING_CURVE_GRADUATION_TARGET_USD)
+    return graduated ? graduationTarget : Math.min(fromApi, graduationTarget)
   }
-  if (graduated) return BONDING_CURVE_GRADUATION_TARGET_USD
+  if (graduated) return graduationTarget
   const pct = normalizeBondingCurveProgress(progress)
-  return (pct / 100) * BONDING_CURVE_GRADUATION_TARGET_USD
+  return (pct / 100) * graduationTarget
 }
 
 /** e.g. $1.48M, $206K, $45.2K */

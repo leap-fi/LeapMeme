@@ -27,7 +27,9 @@ import {
   normalizeUserPositionHoldAmount,
 } from '@/lib/apis/meme-server/position-filter'
 import { useTransferCreator } from '@/hooks/use-transfer-creator'
+import { useWithdrawLockedFunds, type WithdrawLockedFundsStatus } from '@/hooks/use-withdraw-locked-funds'
 import { publicClient } from '@/lib/contracts/client'
+import { useI18n } from '@/lib/i18n/context'
 import { readErc20Balance } from '@/lib/contracts/trade-quote'
 import { useCreatorRewards } from '@/hooks/use-creator-rewards'
 import { formatShortAddress } from '@/lib/utils'
@@ -141,6 +143,7 @@ async function loadUserRewardTokenItems(
 }
 
 export function ProfilePagePrivy() {
+  const { t } = useI18n()
   const router = useRouter()
   const { ready: privyReady, authenticated, logout } = usePrivy()
   const session = useWalletSessionOptional()
@@ -177,6 +180,9 @@ export function ProfilePagePrivy() {
   const [rewardTokens, setRewardTokens] = useState<ProfileRewardTokenItem[]>([])
   const [rewardTokensLoading, setRewardTokensLoading] = useState(false)
   const [rewardTokensError, setRewardTokensError] = useState<string | null>(null)
+  const [withdrawStatuses, setWithdrawStatuses] = useState<Record<string, WithdrawLockedFundsStatus>>({})
+  const [withdrawStatusesLoading, setWithdrawStatusesLoading] = useState(false)
+  const [withdrawingTokenId, setWithdrawingTokenId] = useState<string | null>(null)
   const walletForChain =
     selectedWallet &&
     'address' in selectedWallet &&
@@ -191,6 +197,7 @@ export function ProfilePagePrivy() {
 
   const creatorRewards = useCreatorRewards(walletForChain)
   const transferCreator = useTransferCreator(walletForChain)
+  const withdrawLockedFunds = useWithdrawLockedFunds(walletForChain)
 
   useEffect(() => {
     let disposed = false
@@ -248,7 +255,7 @@ export function ProfilePagePrivy() {
       } catch (error) {
         if (!disposed) {
           setBalances([])
-          setBalancesError(error instanceof Error ? error.message : 'Failed to load balances')
+          setBalancesError(error instanceof Error ? error.message : t('profile.error.loadBalances'))
         }
       } finally {
         if (!disposed) setBalancesLoading(false)
@@ -258,7 +265,7 @@ export function ProfilePagePrivy() {
     return () => {
       disposed = true
     }
-  }, [authenticated, walletAddress])
+  }, [authenticated, walletAddress, t])
 
   useEffect(() => {
     let disposed = false
@@ -281,7 +288,7 @@ export function ProfilePagePrivy() {
         if (!disposed) {
           setCreatedTokens([])
           setCreatedTokensError(
-            error instanceof Error ? error.message : 'Failed to load created tokens',
+            error instanceof Error ? error.message : t('profile.error.loadCreatedTokens'),
           )
         }
       } finally {
@@ -292,7 +299,7 @@ export function ProfilePagePrivy() {
     return () => {
       disposed = true
     }
-  }, [authenticated, walletAddress])
+  }, [authenticated, walletAddress, t])
 
   useEffect(() => {
     let disposed = false
@@ -314,7 +321,7 @@ export function ProfilePagePrivy() {
         if (!disposed) {
           setRewardTokens([])
           setRewardTokensError(
-            error instanceof Error ? error.message : 'Failed to load creator rewards',
+            error instanceof Error ? error.message : t('profile.error.loadCreatorRewards'),
           )
         }
       } finally {
@@ -325,7 +332,7 @@ export function ProfilePagePrivy() {
     return () => {
       disposed = true
     }
-  }, [authenticated, walletAddress])
+  }, [authenticated, walletAddress, t])
 
   useEffect(() => {
     if (creatorRewards.txState.status !== 'success' || !walletAddress) return
@@ -364,7 +371,7 @@ export function ProfilePagePrivy() {
           setManageWalletUsdc('0')
           setManageWalletHype('0')
           setManageWalletError(
-            error instanceof Error ? error.message : 'Failed to load on-chain wallet balances',
+            error instanceof Error ? error.message : t('profile.error.loadWalletBalances'),
           )
         }
       } finally {
@@ -379,7 +386,50 @@ export function ProfilePagePrivy() {
       disposed = true
       window.clearInterval(timer)
     }
-  }, [authenticated, walletAddress])
+  }, [authenticated, walletAddress, t])
+
+  useEffect(() => {
+    let disposed = false
+    async function loadWithdrawStatuses() {
+      if (!authenticated || !walletAddress || createdTokens.length === 0) {
+        if (!disposed) {
+          setWithdrawStatuses({})
+          setWithdrawStatusesLoading(false)
+        }
+        return
+      }
+      setWithdrawStatusesLoading(true)
+      try {
+        const entries = await Promise.all(
+          createdTokens.map(async (token) => {
+            if (!token.rawAddress) return null
+            try {
+              const status = await withdrawLockedFunds.getStatus({
+                tokenAddress: token.rawAddress,
+                bondingAddress: token.bondingAddress,
+              })
+              return [token.id, status] as const
+            } catch {
+              return null
+            }
+          }),
+        )
+        if (!disposed) {
+          const next: Record<string, WithdrawLockedFundsStatus> = {}
+          for (const entry of entries) {
+            if (entry) next[entry[0]] = entry[1]
+          }
+          setWithdrawStatuses(next)
+        }
+      } finally {
+        if (!disposed) setWithdrawStatusesLoading(false)
+      }
+    }
+    void loadWithdrawStatuses()
+    return () => {
+      disposed = true
+    }
+  }, [authenticated, walletAddress, createdTokens, withdrawLockedFunds.getStatus])
 
   const handleDisconnect = async () => {
     await logout()
@@ -401,6 +451,35 @@ export function ProfilePagePrivy() {
       // error surfaced via txState
     }
   }
+
+  const handleWithdrawLockedFunds = async (tokenId: string) => {
+    const token = createdTokens.find((t) => t.id === tokenId)
+    if (!token?.rawAddress) return
+    setWithdrawingTokenId(tokenId)
+    try {
+      await withdrawLockedFunds.withdraw({
+        tokenAddress: token.rawAddress,
+        bondingAddress: token.bondingAddress,
+      })
+      const status = await withdrawLockedFunds.getStatus({
+        tokenAddress: token.rawAddress,
+        bondingAddress: token.bondingAddress,
+      })
+      setWithdrawStatuses((prev) => ({ ...prev, [tokenId]: status }))
+    } catch {
+      // error surfaced via txState
+    } finally {
+      setWithdrawingTokenId(null)
+    }
+  }
+
+  const withdrawUsdcOut =
+    withdrawLockedFunds.txState.status === 'success'
+      ? bigintToNumber(withdrawLockedFunds.txState.usdcOut, USDC_DECIMALS).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : null
 
   return (
     <ProfilePageView
@@ -450,6 +529,19 @@ export function ProfilePagePrivy() {
       }
       onTransferCreatorRole={(tokenId, newOwner) => void handleTransferCreatorRole(tokenId, newOwner)}
       onDismissTransferCreatorTxModal={transferCreator.resetTxState}
+      withdrawStatuses={withdrawStatuses}
+      withdrawStatusesLoading={withdrawStatusesLoading}
+      withdrawingTokenId={withdrawingTokenId}
+      withdrawTxStatus={withdrawLockedFunds.txState.status}
+      withdrawTxMessage={
+        withdrawLockedFunds.txState.status === 'error' ? withdrawLockedFunds.txState.message : null
+      }
+      withdrawTxHash={
+        withdrawLockedFunds.txState.status === 'success' ? withdrawLockedFunds.txState.hash : null
+      }
+      withdrawUsdcOut={withdrawUsdcOut}
+      onWithdrawLockedFunds={(tokenId) => void handleWithdrawLockedFunds(tokenId)}
+      onDismissWithdrawTxModal={withdrawLockedFunds.resetTxState}
       onConnect={loginWithWallet}
       onDisconnect={handleDisconnect}
       needsReconnect={session?.needsReconnect ?? false}

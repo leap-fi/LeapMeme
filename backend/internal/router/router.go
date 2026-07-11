@@ -54,6 +54,7 @@ func registerMarketRoutes(market *gin.RouterGroup) {
 	market.GET("/token/tokens", controller.ListNewTokens)
 	market.GET("/token/trending", controller.ListTrendingTokens)
 	market.GET("/token/detail", controller.GetTokenDetail)
+	market.GET("/protocol/config", controller.GetProtocolConfig)
 	market.GET("/token/positions", controller.ListTokenPositions)
 
 	user := market.Group("/user")

@@ -281,6 +281,37 @@ export const bondingAbi = [
       { name: 'newCreator', type: 'address', indexed: true },
     ],
   },
+  {
+    type: 'function',
+    name: 'liquidityWithdrawn',
+    stateMutability: 'view',
+    inputs: [{ name: 'token', type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
+  {
+    type: 'function',
+    name: 'canWithdrawLockedLiquidity',
+    stateMutability: 'view',
+    inputs: [{ name: 'token', type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
+  {
+    type: 'function',
+    name: 'withdrawLockedLiquidity',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'token', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'event',
+    name: 'LockedLiquidityWithdrawn',
+    inputs: [
+      { name: 'token', type: 'address', indexed: true },
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'usdcOut', type: 'uint256', indexed: false },
+      { name: 'memeReclaimed', type: 'uint256', indexed: false },
+    ],
+  },
 ] as const
 
 export const routerAbi = [

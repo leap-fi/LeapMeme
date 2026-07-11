@@ -27,9 +27,6 @@ var (
 	IndexerBatchSize       uint64 = defaultIndexerBatchSize
 	IndexerConfirmations   uint64 = 1
 	IndexerPollIntervalSec        = 3
-
-	// BondingCurveGraduationTargetUSD 必须与自有合约 LeapBonding.GRADUATION_USDC 对齐（默认 10 USDC）。
-	BondingCurveGraduationTargetUSD = 10
 )
 
 func loadChainEnv() {
@@ -55,9 +52,6 @@ func loadChainEnv() {
 		IndexerConfirmations = v
 	}
 	IndexerPollIntervalSec = GetEnvOrDefault("INDEXER_POLL_INTERVAL_SEC", IndexerPollIntervalSec)
-	if v := GetEnvOrDefault("BONDING_CURVE_GRADUATION_TARGET_USD", BondingCurveGraduationTargetUSD); v > 0 {
-		BondingCurveGraduationTargetUSD = v
-	}
 }
 
 func parseAddressList(raw string) []string {

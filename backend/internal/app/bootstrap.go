@@ -48,6 +48,7 @@ func InitResources() error {
 	if common.IndexerEnabled {
 		common.SysLog("chain indexer enabled (zaps: " + strings.Join(common.ZapAddresses, ", ") + ")")
 	}
+	common.InitProtocol()
 	return nil
 }
 

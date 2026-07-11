@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { tokens } from '@/lib/mock-data'
 import {
@@ -8,7 +8,7 @@ import {
   normalizeBondingCurveProgress,
   toNumber,
 } from '@/lib/apis/meme-server/format'
-import { getTokenDetail, type TokenDetailDto } from '@/lib/apis/meme-server/token-detail.api'
+import { useTokenDetail } from '@/hooks/use-token-detail'
 import { buildLaunchedToken } from '@/lib/launched-token'
 import { addRecentlyViewed } from '@/lib/recently-viewed'
 import {
@@ -39,7 +39,6 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 const LG_BREAKPOINT_PX = 1024
-const DETAIL_POLL_MS = 10_000
 
 function useIsLgUp() {
   const [isLgUp, setIsLgUp] = useState<boolean | null>(null)
@@ -107,44 +106,15 @@ export default function CoinPage() {
       : null)
 
   const fetchAddress = addressOverride?.trim() || tokenFromList?.contractAddress?.trim() || ''
-  const [detail, setDetail] = useState<TokenDetailDto | null>(null)
+  const { detail, refetch: refetchDetail } = useTokenDetail(fetchAddress)
   const [tradeRefreshKey, setTradeRefreshKey] = useState(0)
-  const detailLoadedRef = useRef(false)
   const isLgUp = useIsLgUp()
   const [tradeDrawerOpen, setTradeDrawerOpen] = useState(false)
 
-  const loadDetail = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent ?? false
-    if (!fetchAddress) {
-      detailLoadedRef.current = false
-      setDetail(null)
-      return
-    }
-    try {
-      const data = await getTokenDetail(fetchAddress)
-      setDetail(data)
-      detailLoadedRef.current = true
-    } catch {
-      if (!silent || !detailLoadedRef.current) {
-        setDetail(null)
-        detailLoadedRef.current = false
-      }
-    }
-  }, [fetchAddress])
-
-  useEffect(() => {
-    detailLoadedRef.current = false
-    void loadDetail()
-    const timer = window.setInterval(() => {
-      void loadDetail({ silent: true })
-    }, DETAIL_POLL_MS)
-    return () => window.clearInterval(timer)
-  }, [loadDetail])
-
   const handleTradeSuccess = useCallback(() => {
     setTradeRefreshKey((key) => key + 1)
-    void loadDetail({ silent: true })
-  }, [loadDetail])
+    void refetchDetail({ silent: true })
+  }, [refetchDetail])
 
   const resolvedToken = useMemo(() => {
     const underlying = detail?.market?.trim()
@@ -375,6 +345,7 @@ export default function CoinPage() {
             <TokenChart
               token={resolvedToken}
               contractAddressOverride={addressOverride}
+              detail={detail}
             />
 
             {/* Token detail tabs */}

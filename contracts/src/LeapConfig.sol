@@ -14,12 +14,12 @@ library LeapConfig {
         uint256 maxUsdcPerTrade; // 单笔 buy/sell 的 USDC 上限（全生命周期），max = 不限
     }
 
-    /// @dev 当前默认参数：大虚拟池、0 seed 可发币、seed 最多 20 USDC、10 USDC 毕业、单笔不封顶。
+    /// @dev 当前默认参数：大虚拟池、0 seed 可发币、seed 最多 20 USDC、1000 USDC 毕业、单笔不封顶。
     function params() internal pure returns (Params memory) {
         return Params({
             virtualUsdc: 3_000_000_000, // 3000 USDC
             virtualToken: 1_073_000_000 ether,
-            graduationUsdc: 10_000_000, // 10 USDC
+            graduationUsdc: 1_000_000_000, // 1000 USDC
             minSeedUsdc: 0,
             maxSeedUsdc: 20_000_000, // 20 USDC
             minUsdcAmount: 100, // 0.0001 USDC

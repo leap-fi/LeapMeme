@@ -10,7 +10,7 @@ import { useZapTrade } from '@/hooks/use-zap-trade'
 import { resolveTokenAddress } from '@/lib/contracts/token-address'
 import { CONTRACTS } from '@/lib/contracts/config'
 import type { TradeContracts } from '@/lib/contracts/trade-quote'
-import { MIN_BUY_USDC, MIN_SELL_USDC } from '@/lib/contracts/config'
+import { useProtocolConfig } from '@/contexts/protocol-context'
 import { hyperEvm } from '@/lib/contracts/chain'
 import { cn } from '@/lib/utils'
 
@@ -71,6 +71,7 @@ export function TradePanel({
   glass,
   onTradeSuccess,
 }: TradePanelProps) {
+  const { config } = useProtocolConfig()
   const [mode, setMode] = useState<'buy' | 'sell'>('buy')
   const [amount, setAmount] = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -142,7 +143,7 @@ export function TradePanel({
 
   const minHint =
     mode === 'buy'
-      ? `Minimum ${MIN_BUY_USDC} USDC`
+      ? `Minimum ${config.minBuyUsdc} USDC`
       : ''
   const amountHint = minHint
 
@@ -167,7 +168,7 @@ export function TradePanel({
     Number.isFinite(estimatedReceiveOut) &&
     estimatedReceiveOut > 0
 
-  const isBelowMinimum = mode === 'buy' ? hasValidAmount && amountNum < MIN_BUY_USDC : false
+  const isBelowMinimum = mode === 'buy' ? hasValidAmount && amountNum < config.minBuyUsdc : false
 
   const buttonLabel = (() => {
     if (noContract) return 'Contract address not configured'

@@ -20,11 +20,10 @@ import { publicClient } from '@/lib/contracts/client'
 import { hyperEvm } from '@/lib/contracts/chain'
 import {
   CONTRACTS,
-  MIN_BUY_USDC,
-  MIN_SELL_USDC,
   TOKEN_DECIMALS,
   USDC_DECIMALS,
   ZERO_ADDRESS,
+  getMinBuyUsdc,
 } from '@/lib/contracts/config'
 import {
   encodeApproveCall,
@@ -489,8 +488,8 @@ export function useZapTrade(
     try {
       if (mode === 'buy') {
         const usdcAmount = parseUnits(amount, USDC_DECIMALS)
-        if (Number.parseFloat(amount) < MIN_BUY_USDC) {
-          throw new Error(`Minimum buy amount is ${MIN_BUY_USDC} USDC.`)
+        if (Number.parseFloat(amount) < getMinBuyUsdc()) {
+          throw new Error(`Minimum buy amount is ${getMinBuyUsdc()} USDC.`)
         }
         const minOut = quote?.estimatedOutRaw
           ? applySlippage(quote.estimatedOutRaw, slippagePercent)

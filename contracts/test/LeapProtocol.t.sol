@@ -20,7 +20,7 @@ import {IUniswapV2Pair} from "../src/external/univ2/IUniswapV2.sol";
 contract LeapProtocolTest is Test {
     uint256 internal constant SEED_USDC = 5_000_000; // 5 USDC
     uint256 internal constant BUY_USDC = 1_000_000; // 1 USDC
-    uint256 internal constant GRAD_BUY_USDC = 10_000_000; // 10 USDC -> 触发毕业
+    uint256 internal constant GRAD_BUY_USDC = 1_005_000_000; // 1005 USDC gross（含 5 seed 后净募集 ≥ 1000）
 
     bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
@@ -52,7 +52,7 @@ contract LeapProtocolTest is Test {
         factory = new MockBounceFactory(lts, address(this));
         globalStorage = new MockGlobalStorage(address(factory));
 
-        // 本套用例覆盖买卖/毕业行为，使用当前默认参数（0 seed / seed 最多 20 / 10 毕业 / 单笔不封顶）。
+        // 本套用例覆盖买卖/毕业行为，使用当前默认参数（0 seed / seed 最多 20 / 1000 毕业 / 单笔不封顶）。
         LeapConfig.Params memory cfg = LeapConfig.params();
         tokenImpl = new LeapToken();
         bonding = new LeapBonding(
@@ -296,6 +296,100 @@ contract LeapProtocolTest is Test {
         assertEq(usdc.balanceOf(treasury), treasuryBefore + protocolFee);
     }
 
+    // --- withdraw locked liquidity ---
+
+    function test_WithdrawLockedLiquidity_revertsWhenMemeStillCirculating() public {
+        address token = _createTokenAs(creator);
+        _graduate(token);
+
+        assertFalse(bonding.canWithdrawLockedLiquidity(token), "should not be withdrawable");
+
+        vm.prank(creator);
+        vm.expectRevert(bytes("still circulating"));
+        bonding.withdrawLockedLiquidity(token);
+    }
+
+    function test_WithdrawLockedLiquidity_revertsForNonCreator() public {
+        address token = _createTokenAs(creator);
+        _graduate(token);
+
+        vm.prank(trader);
+        vm.expectRevert(bytes("creator"));
+        bonding.withdrawLockedLiquidity(token);
+    }
+
+    function test_WithdrawLockedLiquidity_revertsBeforeGraduation() public {
+        address token = _createTokenAs(creator);
+
+        vm.prank(creator);
+        vm.expectRevert(bytes("not graduated"));
+        bonding.withdrawLockedLiquidity(token);
+    }
+
+    function test_WithdrawLockedLiquidity_reclaimsUsdcForCreator() public {
+        address token = _createTokenAs(creator);
+        _graduate(token);
+
+        uint256 creatorHeld = IERC20(token).balanceOf(creator);
+        if (creatorHeld > 0) {
+            vm.startPrank(creator);
+            IERC20(token).approve(address(zap), creatorHeld);
+            zap.sell(token, creatorHeld, 0);
+            vm.stopPrank();
+        }
+
+        uint256 traderHeld = IERC20(token).balanceOf(trader);
+        if (traderHeld > 0) {
+            vm.startPrank(trader);
+            IERC20(token).approve(address(zap), traderHeld);
+            zap.sell(token, traderHeld, 0);
+            vm.stopPrank();
+        }
+
+        address pair = bonding.pairOf(token);
+        assertLe(bonding.circulatingMeme(token), bonding.WITHDRAW_DUST(), "circulating cleared");
+        assertTrue(bonding.canWithdrawLockedLiquidity(token), "should be withdrawable");
+
+        uint256 usdcBefore = usdc.balanceOf(creator);
+
+        vm.prank(creator);
+        uint256 usdcOut = bonding.withdrawLockedLiquidity(token);
+
+        assertGt(usdcOut, 0, "should reclaim usdc");
+        assertEq(usdc.balanceOf(creator) - usdcBefore, usdcOut, "usdc paid to creator");
+        assertEq(IERC20(pair).balanceOf(address(bonding)), 0, "lp burned");
+        assertTrue(bonding.liquidityWithdrawn(token), "marked withdrawn");
+        assertFalse(bonding.canWithdrawLockedLiquidity(token), "not withdrawable after");
+    }
+
+    function test_WithdrawLockedLiquidity_revertsOnDoubleWithdraw() public {
+        address token = _createTokenAs(creator);
+        _graduate(token);
+
+        uint256 creatorHeld = IERC20(token).balanceOf(creator);
+        if (creatorHeld > 0) {
+            vm.startPrank(creator);
+            IERC20(token).approve(address(zap), creatorHeld);
+            zap.sell(token, creatorHeld, 0);
+            vm.stopPrank();
+        }
+
+        uint256 traderHeld = IERC20(token).balanceOf(trader);
+        if (traderHeld > 0) {
+            vm.startPrank(trader);
+            IERC20(token).approve(address(zap), traderHeld);
+            zap.sell(token, traderHeld, 0);
+            vm.stopPrank();
+        }
+
+        vm.prank(creator);
+        bonding.withdrawLockedLiquidity(token);
+
+        vm.prank(creator);
+        vm.expectRevert(bytes("withdrawn"));
+        bonding.withdrawLockedLiquidity(token);
+    }
+
     // --- permit variants ---
 
     function _signPermit(address tokenForPermit, uint256 ownerPk, address owner, uint256 value)
@@ -381,7 +475,7 @@ contract LeapProtocolTest is Test {
         assertEq(zap.creatorFeeShareBps(), 6667);
         assertEq(zap.protocolTreasury(), 0x5945509FD601fB6b67bE2ff06ee72188057d45F3);
         assertEq(zap.MAX_USDC_PER_TRADE(), type(uint256).max);
-        assertEq(bonding.GRADUATION_USDC(), 10_000_000);
+        assertEq(bonding.GRADUATION_USDC(), 1_000_000_000);
         assertEq(bonding.VIRTUAL_USDC(), 3_000_000_000);
     }
 }
