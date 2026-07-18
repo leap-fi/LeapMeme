@@ -53,10 +53,11 @@ func (s *Scanner) readTokenMeta(ctx context.Context, token ethcommon.Address) (s
 }
 
 type transferEvent struct {
-	Token ethcommon.Address
-	From  ethcommon.Address
-	To    ethcommon.Address
-	Value *big.Int
+	Token    ethcommon.Address
+	From     ethcommon.Address
+	To       ethcommon.Address
+	Value    *big.Int
+	LogIndex uint
 }
 
 func parseTransferLogs(logs []*types.Log) []transferEvent {
@@ -67,26 +68,37 @@ func parseTransferLogs(logs []*types.Log) []transferEvent {
 			continue
 		}
 		out = append(out, transferEvent{
-			Token: lg.Address,
-			From:  ethcommon.BytesToAddress(lg.Topics[1].Bytes()),
-			To:    ethcommon.BytesToAddress(lg.Topics[2].Bytes()),
-			Value: new(big.Int).SetBytes(lg.Data),
+			Token:    lg.Address,
+			From:     ethcommon.BytesToAddress(lg.Topics[1].Bytes()),
+			To:       ethcommon.BytesToAddress(lg.Topics[2].Bytes()),
+			Value:    new(big.Int).SetBytes(lg.Data),
+			LogIndex: lg.Index,
 		})
 	}
 	return out
 }
 
-func findTransferAmount(transfers []transferEvent, token, trader ethcommon.Address, inbound bool) *big.Int {
-	for _, tr := range transfers {
+// findTokenTransfer returns the matching ERC20 Transfer used as the trade's
+// canonical log for idempotency (chain_id, tx_hash, log_index).
+func findTokenTransfer(transfers []transferEvent, token, trader ethcommon.Address, inbound bool) *transferEvent {
+	for i := range transfers {
+		tr := &transfers[i]
 		if tr.Token != token {
 			continue
 		}
 		if inbound && tr.To == trader {
-			return tr.Value
+			return tr
 		}
 		if !inbound && tr.From == trader {
-			return tr.Value
+			return tr
 		}
+	}
+	return nil
+}
+
+func findTransferAmount(transfers []transferEvent, token, trader ethcommon.Address, inbound bool) *big.Int {
+	if tr := findTokenTransfer(transfers, token, trader, inbound); tr != nil {
+		return tr.Value
 	}
 	return nil
 }

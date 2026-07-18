@@ -15,7 +15,9 @@ const (
 
 type Trade struct {
 	ID           int64  `gorm:"primaryKey"`
-	Hash         string `gorm:"size:66;uniqueIndex"`
+	ChainID      int64  `gorm:"column:chain_id;uniqueIndex:idx_trades_chain_hash_log"`
+	Hash         string `gorm:"size:66;index;uniqueIndex:idx_trades_chain_hash_log"`
+	LogIndex     uint   `gorm:"column:log_index;uniqueIndex:idx_trades_chain_hash_log"`
 	TokenAddress string `gorm:"size:42;column:token_address;index"`
 	Symbol       string `gorm:"size:64"`
 	Name         string `gorm:"size:128"`
@@ -46,7 +48,11 @@ func InsertTradeIgnoreDuplicate(trade *Trade) error {
 		trade.Source = "zap"
 	}
 	return DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "hash"}},
+		Columns: []clause.Column{
+			{Name: "chain_id"},
+			{Name: "hash"},
+			{Name: "log_index"},
+		},
 		DoNothing: true,
 	}).Create(trade).Error
 }

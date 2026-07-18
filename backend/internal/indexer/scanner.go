@@ -311,17 +311,19 @@ func (s *Scanner) recordSeedBuy(
 	}
 
 	transfers := parseTransferLogs(receipt.Logs)
-	amountRaw := findTransferAmount(transfers, tokenAddr, creator, true)
-	if amountRaw == nil || amountRaw.Sign() == 0 {
+	tokenXfer := findTokenTransfer(transfers, tokenAddr, creator, true)
+	if tokenXfer == nil || tokenXfer.Value == nil || tokenXfer.Value.Sign() == 0 {
 		return nil
 	}
 
 	volume := formatTokenAmount(seedUsdc, 6)
-	amount := formatTokenAmount(amountRaw, 18)
+	amount := formatTokenAmount(tokenXfer.Value, 18)
 	price := calcPrice(volume, amount)
 
 	trade := &model.Trade{
+		ChainID:      s.chainID.Int64(),
 		Hash:         txHash.Hex(),
+		LogIndex:     tokenXfer.LogIndex,
 		TokenAddress: strings.ToLower(tokenAddr.Hex()),
 		Symbol:       symbol,
 		Name:         name,
@@ -399,6 +401,7 @@ func (s *Scanner) processTradeTx(
 	transfers := parseTransferLogs(receipt.Logs)
 	// 获取交易金额和交易量
 	var amountRaw, volumeRaw *big.Int
+	var amountLogIndex uint
 	zapAddr := *tx.To()
 	bondingAddr := ethcommon.HexToAddress(s.cfg.BondingAddress)
 
@@ -412,7 +415,10 @@ func (s *Scanner) processTradeTx(
 				}
 			}
 		}
-		amountRaw = findTransferAmount(transfers, tokenAddr, trader, true)
+		if tokenXfer := findTokenTransfer(transfers, tokenAddr, trader, true); tokenXfer != nil {
+			amountRaw = tokenXfer.Value
+			amountLogIndex = tokenXfer.LogIndex
+		}
 		if volumeRaw == nil {
 			volumeRaw = findTransferAmount(transfers, s.usdcAddr, trader, false)
 		}
@@ -423,8 +429,11 @@ func (s *Scanner) processTradeTx(
 			}
 		}
 		volumeRaw = sellGrossUsdcFromBonding(transfers, s.usdcAddr, bondingAddr, zapAddr)
-		if amountRaw == nil {
-			amountRaw = findTransferAmount(transfers, tokenAddr, trader, false)
+		if tokenXfer := findTokenTransfer(transfers, tokenAddr, trader, false); tokenXfer != nil {
+			if amountRaw == nil {
+				amountRaw = tokenXfer.Value
+			}
+			amountLogIndex = tokenXfer.LogIndex
 		}
 	}
 
@@ -444,7 +453,9 @@ func (s *Scanner) processTradeTx(
 	symbol, name := s.tokenDisplay(ctx, tokenAddr)
 
 	trade := &model.Trade{
+		ChainID:      s.chainID.Int64(),
 		Hash:         tx.Hash().Hex(),
+		LogIndex:     amountLogIndex,
 		TokenAddress: strings.ToLower(tokenAddr.Hex()),
 		Symbol:       symbol,
 		Name:         name,
