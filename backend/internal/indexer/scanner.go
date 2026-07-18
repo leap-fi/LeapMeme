@@ -186,7 +186,8 @@ func (s *Scanner) processBlock(ctx context.Context, block *types.Block) error {
 		// 处理买入和卖出交易
 		case "buy", "buyWithPermit", "sell", "sellWithPermit":
 			if err := s.processTradeTx(ctx, block, tx, method.Name); err != nil {
-				common.SysError(fmt.Sprintf("indexer trade %s: %v", tx.Hash().Hex(), err))
+				// 必须上抛：否则游标会前进，该成交永久丢失
+				return fmt.Errorf("trade %s: %w", tx.Hash().Hex(), err)
 			}
 		}
 	}
@@ -260,7 +261,8 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 			return err
 		}
 		if err := s.recordSeedBuy(ctx, block, lg.TxHash, tokenAddr, creator, symbol, name, seedUsdc); err != nil {
-			common.SysError(fmt.Sprintf("indexer seed buy %s: %v", token.Address, err))
+			// 必须上抛：seed buy 失败若继续推进游标会静默丢首笔成交
+			return fmt.Errorf("seed buy %s tx %s: %w", token.Address, lg.TxHash.Hex(), err)
 		}
 	}
 	return nil
@@ -450,6 +452,7 @@ func (s *Scanner) processTradeTx(
 		return nil
 	}
 
+	// token 元数据补齐失败不阻断成交入库；下一轮/API 仍可补全
 	if err := s.ensureTokenRecord(ctx, tokenAddr, block); err != nil {
 		common.SysError(fmt.Sprintf("indexer ensure token %s: %v", tokenAddr.Hex(), err))
 	}
