@@ -14,6 +14,7 @@ import (
 	"github.com/leap/backend/common"
 	"github.com/leap/backend/internal/kline"
 	"github.com/leap/backend/internal/model"
+	"gorm.io/gorm"
 )
 
 type Scanner struct {
@@ -139,32 +140,46 @@ func (s *Scanner) RunOnce(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("block %d: %w", blockNum, err)
 		}
-		if err := s.processBlock(ctx, block); err != nil {
+		mut, err := s.collectBlock(ctx, block)
+		if err != nil {
 			return fmt.Errorf("block %d: %w", blockNum, err)
 		}
-		parent := ""
-		if blockNum > 0 {
-			parent = block.ParentHash().Hex()
+		// 写库与 cursor 同事务：RPC 已在 collect 完成，事务内只做 DB
+		if err := model.Transaction(func(tx *gorm.DB) error {
+			return s.applyBlockMutation(tx, block, mut)
+		}); err != nil {
+			return fmt.Errorf("block %d commit: %w", blockNum, err)
 		}
-		if err := s.commitBlock(blockNum, block.Hash().Hex(), parent); err != nil {
-			return fmt.Errorf("commit block %d: %w", blockNum, err)
-		}
+		s.afterBlockCommit(ctx, mut)
 	}
 	return nil
 }
 
-func (s *Scanner) processBlock(ctx context.Context, block *types.Block) error {
-	// 处理 TokenCreated 新币创建
-	if err := s.processTokenCreatedLogs(ctx, block); err != nil {
-		return err
+func (s *Scanner) afterBlockCommit(ctx context.Context, mut *blockMutation) {
+	if mut == nil {
+		return
 	}
-
-	// 处理创作者转让
-	if err := s.processCreatorTransferredLogs(ctx, block); err != nil {
-		return err
+	if eng := kline.Default(); eng != nil {
+		for _, trade := range mut.trades {
+			eng.OnTrade(trade)
+		}
 	}
+	for _, addr := range mut.marketSync {
+		if err := s.syncTokenMarketState(ctx, addr); err != nil {
+			common.SysError(fmt.Sprintf("indexer market sync %s: %v", addr.Hex(), err))
+		}
+	}
+}
 
-	// 处理交易
+// collectBlock gathers all mutations for a block via RPC; no DB writes.
+func (s *Scanner) collectBlock(ctx context.Context, block *types.Block) (*blockMutation, error) {
+	mut := &blockMutation{}
+	if err := s.collectTokenCreatedLogs(ctx, block, mut); err != nil {
+		return nil, err
+	}
+	if err := s.collectCreatorTransferredLogs(ctx, block, mut); err != nil {
+		return nil, err
+	}
 	for _, tx := range block.Transactions() {
 		if tx.To() == nil {
 			continue
@@ -172,32 +187,25 @@ func (s *Scanner) processBlock(ctx context.Context, block *types.Block) error {
 		if _, ok := s.zapSet[*tx.To()]; !ok {
 			continue
 		}
-		// 如果交易数据长度小于4，则跳过
 		if len(tx.Data()) < 4 {
 			continue
 		}
-		// 获取交易方法
 		method, err := s.zapABI.MethodById(tx.Data()[:4])
 		if err != nil {
 			continue
 		}
-		// 处理交易
 		switch method.Name {
-		// 处理买入和卖出交易
 		case "buy", "buyWithPermit", "sell", "sellWithPermit":
-			if err := s.processTradeTx(ctx, block, tx, method.Name); err != nil {
-				// 必须上抛：否则游标会前进，该成交永久丢失
-				return fmt.Errorf("trade %s: %w", tx.Hash().Hex(), err)
+			if err := s.collectTradeTx(ctx, block, tx, method.Name, mut); err != nil {
+				return nil, fmt.Errorf("trade %s: %w", tx.Hash().Hex(), err)
 			}
 		}
 	}
-	return nil
+	return mut, nil
 }
 
-// 扫 TokenCreated 新币创建
-func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Block) error {
-	// 这里就是在读合约发出的事件 logs，不是读 calldata
-	// 合约内部写的执行过程中 emit 出来的记录
+// 扫 TokenCreated 新币创建（仅收集，不写库）
+func (s *Scanner) collectTokenCreatedLogs(ctx context.Context, block *types.Block, mut *blockMutation) error {
 	logs, err := s.client.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: block.Number(),
 		ToBlock:   block.Number(),
@@ -257,18 +265,16 @@ func (s *Scanner) processTokenCreatedLogs(ctx context.Context, block *types.Bloc
 		if err := s.enrichToken(ctx, token, launch); err != nil {
 			common.SysError(fmt.Sprintf("indexer enrich token %s: %v", token.Address, err))
 		}
-		if err := model.UpsertToken(token); err != nil {
-			return err
-		}
-		if err := s.recordSeedBuy(ctx, block, lg.TxHash, tokenAddr, creator, symbol, name, seedUsdc); err != nil {
-			// 必须上抛：seed buy 失败若继续推进游标会静默丢首笔成交
+		mut.addToken(token)
+
+		if err := s.collectSeedBuy(ctx, block, lg.TxHash, tokenAddr, creator, symbol, name, seedUsdc, mut); err != nil {
 			return fmt.Errorf("seed buy %s tx %s: %w", token.Address, lg.TxHash.Hex(), err)
 		}
 	}
 	return nil
 }
 
-func (s *Scanner) processCreatorTransferredLogs(ctx context.Context, block *types.Block) error {
+func (s *Scanner) collectCreatorTransferredLogs(ctx context.Context, block *types.Block, mut *blockMutation) error {
 	if s.cfg.BondingAddress == "" {
 		return nil
 	}
@@ -289,17 +295,12 @@ func (s *Scanner) processCreatorTransferredLogs(ctx context.Context, block *type
 		}
 		tokenAddr := ethcommon.BytesToAddress(lg.Topics[1].Bytes())
 		newCreator := ethcommon.BytesToAddress(lg.Topics[3].Bytes())
-		if err := model.UpdateTokenCreator(
-			strings.ToLower(tokenAddr.Hex()),
-			strings.ToLower(newCreator.Hex()),
-		); err != nil {
-			return err
-		}
+		mut.addCreator(tokenAddr.Hex(), newCreator.Hex())
 	}
 	return nil
 }
 
-func (s *Scanner) recordSeedBuy(
+func (s *Scanner) collectSeedBuy(
 	ctx context.Context,
 	block *types.Block,
 	txHash ethcommon.Hash,
@@ -307,6 +308,7 @@ func (s *Scanner) recordSeedBuy(
 	creator ethcommon.Address,
 	symbol, name string,
 	seedUsdc *big.Int,
+	mut *blockMutation,
 ) error {
 	if seedUsdc == nil || seedUsdc.Sign() <= 0 {
 		return nil
@@ -347,70 +349,55 @@ func (s *Scanner) recordSeedBuy(
 		BlockNumber:  block.NumberU64(),
 		BlockHash:    block.Hash().Hex(),
 	}
-	if err := model.InsertTradeIgnoreDuplicate(trade); err != nil {
-		return err
-	}
-	if eng := kline.Default(); eng != nil {
-		eng.OnTrade(trade)
-	}
-
-	_ = s.syncTokenMarketState(ctx, tokenAddr)
+	mut.addTrade(trade)
+	mut.addMarketSync(tokenAddr)
 	return nil
 }
 
-func (s *Scanner) processTradeTx(
+func (s *Scanner) collectTradeTx(
 	ctx context.Context,
 	block *types.Block,
 	tx *types.Transaction,
 	methodName string,
+	mut *blockMutation,
 ) error {
-	// 获取交易回执
 	receipt, err := s.client.TransactionReceipt(ctx, tx.Hash())
 	if err != nil {
 		return err
 	}
-	// 如果交易回执状态不是成功，则跳过
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return nil
 	}
 
-	// 获取交易方法
 	method, err := s.zapABI.MethodById(tx.Data()[:4])
 	if err != nil {
 		return err
 	}
-	// 获取交易方法参数
 	values, err := method.Inputs.Unpack(tx.Data()[4:])
 	if err != nil {
 		return err
 	}
-	// 如果交易方法参数长度小于1，则跳过
 	if len(values) < 1 {
 		return nil
 	}
 
-	// 获取交易方法参数中的 token 地址
 	tokenAddr, ok := values[0].(ethcommon.Address)
 	if !ok {
 		return nil
 	}
 
-	// 获取交易发送者
 	signer := types.LatestSignerForChainID(s.chainID)
 	trader, err := types.Sender(signer, tx)
 	if err != nil {
 		return err
 	}
 
-	// 获取交易方向
 	side := "BUY"
 	if strings.HasPrefix(methodName, "sell") {
 		side = "SELL"
 	}
 
-	// 获取交易日志
 	transfers := parseTransferLogs(receipt.Logs)
-	// 获取交易金额和交易量
 	var amountRaw, volumeRaw *big.Int
 	var amountLogIndex uint
 	zapAddr := *tx.To()
@@ -452,16 +439,15 @@ func (s *Scanner) processTradeTx(
 		return nil
 	}
 
-	// token 元数据补齐失败不阻断成交入库；下一轮/API 仍可补全
-	if err := s.ensureTokenRecord(ctx, tokenAddr, block); err != nil {
+	if token, err := s.prepareTokenRecord(ctx, tokenAddr, block); err != nil {
 		common.SysError(fmt.Sprintf("indexer ensure token %s: %v", tokenAddr.Hex(), err))
+	} else if token != nil {
+		mut.addToken(token)
 	}
 
 	amount := formatTokenAmount(amountRaw, 18)
 	volume := formatTokenAmount(volumeRaw, 6)
 	price := calcPrice(volume, amount)
-
-	// 获取 token 符号和名称
 	symbol, name := s.tokenDisplay(ctx, tokenAddr)
 
 	trade := &model.Trade{
@@ -481,16 +467,8 @@ func (s *Scanner) processTradeTx(
 		BlockNumber:  block.NumberU64(),
 		BlockHash:    block.Hash().Hex(),
 	}
-	// 插入交易
-	if err := model.InsertTradeIgnoreDuplicate(trade); err != nil {
-		return err
-	}
-
-	if eng := kline.Default(); eng != nil {
-		eng.OnTrade(trade)
-	}
-
-	_ = s.syncTokenMarketState(ctx, tokenAddr)
+	mut.addTrade(trade)
+	mut.addMarketSync(tokenAddr)
 	return nil
 }
 

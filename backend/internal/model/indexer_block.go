@@ -20,13 +20,20 @@ type IndexerBlock struct {
 func (IndexerBlock) TableName() string { return "indexer_blocks" }
 
 func UpsertIndexerBlock(block *IndexerBlock) error {
+	return UpsertIndexerBlockTx(DB, block)
+}
+
+func UpsertIndexerBlockTx(db *gorm.DB, block *IndexerBlock) error {
+	if db == nil {
+		db = DB
+	}
 	if block == nil {
 		return errors.New("indexer block is nil")
 	}
 	if block.CreatedAt == 0 {
 		block.CreatedAt = time.Now().UnixMilli()
 	}
-	return DB.Clauses(clause.OnConflict{
+	return db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "chain_id"},
 			{Name: "block_number"},

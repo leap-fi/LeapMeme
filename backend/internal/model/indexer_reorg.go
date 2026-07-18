@@ -35,6 +35,13 @@ func GetIndexerCursorState(name string) (IndexerCursorState, error) {
 }
 
 func SetIndexerCursorState(name string, lastBlock uint64, lastBlockHash string) error {
+	return SetIndexerCursorStateTx(DB, name, lastBlock, lastBlockHash)
+}
+
+func SetIndexerCursorStateTx(db *gorm.DB, name string, lastBlock uint64, lastBlockHash string) error {
+	if db == nil {
+		db = DB
+	}
 	now := time.Now().UnixMilli()
 	cursor := IndexerCursor{
 		Name:          name,
@@ -42,7 +49,7 @@ func SetIndexerCursorState(name string, lastBlock uint64, lastBlockHash string) 
 		LastBlockHash: strings.TrimSpace(lastBlockHash),
 		UpdatedAt:     now,
 	}
-	return DB.Save(&cursor).Error
+	return db.Save(&cursor).Error
 }
 
 // RewindIndexerAfter deletes indexed data with block_number > keepBlock and

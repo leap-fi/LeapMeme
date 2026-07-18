@@ -167,10 +167,22 @@ func (s *Scanner) enrichToken(ctx context.Context, token *model.Token, launch *l
 // ensureTokenRecord creates or refreshes a token row before trade indexing.
 // Tokens created before INDEXER_START_BLOCK only appear as trades until this runs.
 func (s *Scanner) ensureTokenRecord(ctx context.Context, tokenAddr ethcommon.Address, block *types.Block) error {
+	token, err := s.prepareTokenRecord(ctx, tokenAddr, block)
+	if err != nil {
+		return err
+	}
+	if token == nil {
+		return nil
+	}
+	return model.UpsertToken(token)
+}
+
+// prepareTokenRecord builds a token upsert payload without writing (for transactional apply).
+func (s *Scanner) prepareTokenRecord(ctx context.Context, tokenAddr ethcommon.Address, block *types.Block) (*model.Token, error) {
 	addr := strings.ToLower(tokenAddr.Hex())
 	existing, err := model.GetTokenByAddress(addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	blockTime := time.Now().UnixMilli()
@@ -183,7 +195,7 @@ func (s *Scanner) ensureTokenRecord(ctx context.Context, tokenAddr ethcommon.Add
 	if existing != nil {
 		s.syncTokenGraduation(ctx, existing, tokenAddr)
 		s.syncCreatorFromChain(ctx, existing, tokenAddr)
-		return model.UpsertToken(existing)
+		return existing, nil
 	}
 
 	symbol, name := s.readTokenMeta(ctx, tokenAddr)
@@ -201,7 +213,7 @@ func (s *Scanner) ensureTokenRecord(ctx context.Context, tokenAddr ethcommon.Add
 	if err := s.enrichToken(ctx, token, nil); err != nil {
 		common.SysError(fmt.Sprintf("indexer enrich token %s: %v", addr, err))
 	}
-	return model.UpsertToken(token)
+	return token, nil
 }
 
 func (s *Scanner) syncTokenGraduation(ctx context.Context, token *model.Token, tokenAddr ethcommon.Address) {

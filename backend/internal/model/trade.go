@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -39,6 +40,13 @@ func (Trade) TableName() string { return "trades" }
 func (t Trade) Address() string { return t.TokenAddress }
 
 func InsertTradeIgnoreDuplicate(trade *Trade) error {
+	return InsertTradeIgnoreDuplicateTx(DB, trade)
+}
+
+func InsertTradeIgnoreDuplicateTx(db *gorm.DB, trade *Trade) error {
+	if db == nil {
+		db = DB
+	}
 	if trade == nil {
 		return errors.New("trade is nil")
 	}
@@ -48,7 +56,7 @@ func InsertTradeIgnoreDuplicate(trade *Trade) error {
 	if trade.Source == "" {
 		trade.Source = "zap"
 	}
-	return DB.Clauses(clause.OnConflict{
+	return db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "chain_id"},
 			{Name: "hash"},

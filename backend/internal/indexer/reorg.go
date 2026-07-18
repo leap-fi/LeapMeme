@@ -151,16 +151,3 @@ func (s *Scanner) rebuildKlinesAfterReorg(ctx context.Context, tokenAddresses []
 		common.SysError(fmt.Sprintf("indexer reorg kline rebuild: %v", err))
 	}
 }
-
-func (s *Scanner) commitBlock(blockNumber uint64, blockHash, parentHash string) error {
-	chainID := s.chainID.Int64()
-	if err := model.UpsertIndexerBlock(&model.IndexerBlock{
-		ChainID:     chainID,
-		BlockNumber: blockNumber,
-		BlockHash:   blockHash,
-		ParentHash:  parentHash,
-	}); err != nil {
-		return err
-	}
-	return model.SetIndexerCursorState(model.ChainIndexerCursorName, blockNumber, blockHash)
-}

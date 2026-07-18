@@ -55,6 +55,13 @@ type TokenListFilter struct {
 }
 
 func UpsertToken(token *Token) error {
+	return UpsertTokenTx(DB, token)
+}
+
+func UpsertTokenTx(db *gorm.DB, token *Token) error {
+	if db == nil {
+		db = DB
+	}
 	if token == nil {
 		return errors.New("token is nil")
 	}
@@ -70,7 +77,7 @@ func UpsertToken(token *Token) error {
 	if token.BondingCurveProgress == "" {
 		token.BondingCurveProgress = "0"
 	}
-	return DB.Clauses(clause.OnConflict{
+	return db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "address"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"symbol", "name", "logo", "description", "twitter", "telegram", "website",
@@ -114,12 +121,19 @@ func ListTradeTokenAddressesMissing() ([]string, error) {
 }
 
 func UpdateTokenCreator(address, creator string) error {
+	return UpdateTokenCreatorTx(DB, address, creator)
+}
+
+func UpdateTokenCreatorTx(db *gorm.DB, address, creator string) error {
+	if db == nil {
+		db = DB
+	}
 	address = strings.ToLower(strings.TrimSpace(address))
 	creator = strings.ToLower(strings.TrimSpace(creator))
 	if address == "" || creator == "" {
 		return errors.New("address and creator required")
 	}
-	return DB.Model(&Token{}).
+	return db.Model(&Token{}).
 		Where("LOWER(address) = ?", address).
 		Update("creator", creator).Error
 }
