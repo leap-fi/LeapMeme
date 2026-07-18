@@ -28,6 +28,11 @@ function mergePushedCandle(candles: KlineCandle[], pushed: KlineCandle): KlineCa
   return [...candles, pushed]
 }
 
+/** After create→detail navigation, indexer may lag; poll until first bars appear. */
+const EMPTY_RETRY_MS = 2_000
+const EMPTY_RETRY_MAX = 15
+const KLINE_REFRESH_MS = 15_000
+
 export function useKlineFeed(address: string, period: KlinePeriod): UseKlineFeedState {
   const [candles, setCandles] = useState<KlineCandle[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,9 +52,40 @@ export function useKlineFeed(address: string, period: KlinePeriod): UseKlineFeed
     setCandles((prev) => mergePushedCandle(prev, newCandle))
   }, [])
 
-  // Initial REST fetch.
+  const fetchCandles = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!safeAddress) {
+        setCandles([])
+        setLoading(false)
+        return [] as KlineCandle[]
+      }
+      if (!opts?.silent) setLoading(true)
+      try {
+        const res = await getKlineList({
+          address: safeAddress,
+          period: periodRef.current,
+          startTime: KLINE_HISTORY_START_MS,
+          endTime: Date.now(),
+        })
+        priceDivisorRef.current = resolveKlinePriceDivisor(res.data)
+        const next = listItemsToCandles(res.data, periodRef.current)
+        setCandles(next)
+        return next
+      } catch {
+        if (!opts?.silent) setCandles([])
+        return [] as KlineCandle[]
+      } finally {
+        if (!opts?.silent) setLoading(false)
+      }
+    },
+    [safeAddress],
+  )
+
+  // Initial REST fetch + retries while empty (create→coin race with indexer).
   useEffect(() => {
     let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let retries = 0
 
     if (!safeAddress) {
       setCandles([])
@@ -60,32 +96,33 @@ export function useKlineFeed(address: string, period: KlinePeriod): UseKlineFeed
     setCandles([])
     setLoading(true)
 
-    const end = Date.now()
-    const start = KLINE_HISTORY_START_MS
+    const run = async (silent: boolean) => {
+      const next = await fetchCandles({ silent })
+      if (cancelled) return
+      if (next.length === 0 && retries < EMPTY_RETRY_MAX) {
+        retries += 1
+        retryTimer = setTimeout(() => {
+          void run(true)
+        }, EMPTY_RETRY_MS)
+      }
+    }
 
-    getKlineList({
-      address: safeAddress,
-      period,
-      startTime: start,
-      endTime: end,
-    })
-      .then((res) => {
-        if (cancelled) return
-        priceDivisorRef.current = resolveKlinePriceDivisor(res.data)
-        const next = listItemsToCandles(res.data, period)
-        setCandles(next)
-      })
-      .catch(() => {
-        if (!cancelled) setCandles([])
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+    void run(false)
 
     return () => {
       cancelled = true
+      if (retryTimer != null) clearTimeout(retryTimer)
     }
-  }, [safeAddress, period])
+  }, [safeAddress, period, fetchCandles])
+
+  // Periodic refresh so late-indexed trades still land without a full reload.
+  useEffect(() => {
+    if (!safeAddress) return
+    const id = setInterval(() => {
+      void fetchCandles({ silent: true })
+    }, KLINE_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [safeAddress, period, fetchCandles])
 
   // Persistent WebSocket connection — recreated only when the address changes.
   useEffect(() => {

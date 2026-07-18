@@ -87,6 +87,33 @@ function getPriceFormat(candles: KlineCandle[], scale: number) {
   }
 }
 
+/**
+ * Flat OHLC (common right after a single seed/buy) makes the library's autoscale
+ * range collapse to zero and the candlesticks disappear. Expand a bit so bars show.
+ */
+function resolveFlatAutoscaleInfo(seriesData: CandlestickData[]) {
+  let min = Infinity
+  let max = -Infinity
+  for (const bar of seriesData) {
+    min = Math.min(min, bar.low, bar.open, bar.close)
+    max = Math.max(max, bar.high, bar.open, bar.close)
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return undefined
+
+  const span = max - min
+  const mid = (min + max) / 2
+  const minSpan = Math.max(Math.abs(mid) * 0.08, 1e-12)
+  if (span >= minSpan) return undefined
+
+  const pad = minSpan / 2
+  return {
+    priceRange: {
+      minValue: mid - pad,
+      maxValue: mid + pad,
+    },
+  }
+}
+
 /** Default number of candles to show on screen (rest is scrollable). */
 const DEFAULT_VISIBLE_BARS = 150
 
@@ -244,7 +271,13 @@ export function useLightweightChart(
     lastBarTimeRef.current = lastTime
 
     if (needsFullSet) {
-      series.applyOptions({ priceFormat: getPriceFormat(candles, displayScale) })
+      const flatAutoscale = resolveFlatAutoscaleInfo(seriesData)
+      series.applyOptions({
+        priceFormat: getPriceFormat(candles, displayScale),
+        autoscaleInfoProvider: flatAutoscale
+          ? () => flatAutoscale
+          : undefined,
+      })
       series.setData(seriesData)
       dataInitializedRef.current = true
 

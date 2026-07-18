@@ -91,6 +91,7 @@ contract DeployLocal is Script {
     }
 
     function _mintToAnvilAccounts() internal {
+        // Anvil 默认助记词前 5 个账户，每个 mint 1,000,000 USDC。
         address[5] memory accounts = [
             0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,
             0x70997970C51812dc3A010C7d01b50e0d17dc79C8,
@@ -99,7 +100,10 @@ contract DeployLocal is Script {
             0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
         ];
         for (uint256 i; i < accounts.length; i++) {
-            usdc.mint(accounts[i], MINT_USDC);
+            address to = accounts[i];
+            usdc.mint(to, MINT_USDC);
+            console2.log("Minted 1,000,000 USDC to Anvil account", i);
+            console2.log("  ->", to);
         }
     }
 
