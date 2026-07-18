@@ -94,6 +94,10 @@ func (s *Scanner) Close() {
 // RunOnce scans up to BatchSize blocks and advances the cursor.
 // 扫描 up to BatchSize 个块，并更新游标
 func (s *Scanner) RunOnce(ctx context.Context) error {
+	if err := s.detectAndHandleReorg(ctx); err != nil {
+		return fmt.Errorf("reorg check: %w", err)
+	}
+
 	latest, err := s.client.BlockNumber(ctx) // 获取最新区块号
 	if err != nil {
 		return fmt.Errorf("block number: %w", err)
@@ -106,10 +110,11 @@ func (s *Scanner) RunOnce(ctx context.Context) error {
 	// target：本轮最多扫到这里，indexer 故意不扫到链上最新块，而是停在「最新块往前数 N 块」的位置，等这几块在链上「站稳」再扫，降低遇到 链重组（reorg） 时已经入库又被回滚的风险
 	target := latest - confirmations
 
-	cursor, err := model.GetIndexerCursor(model.ChainIndexerCursorName) // 获取游标
+	state, err := model.GetIndexerCursorState(model.ChainIndexerCursorName)
 	if err != nil {
 		return err
 	}
+	cursor := state.LastBlock
 	if cursor == 0 { // 如果游标为0，则设置游标
 		if s.cfg.StartBlock > 0 {
 			if s.cfg.StartBlock > 1 { // 如果起始区块号大于1，则设置游标
@@ -130,22 +135,25 @@ func (s *Scanner) RunOnce(ctx context.Context) error {
 	to := min(cursor+batch, target) // 结束区块号
 
 	for blockNum := cursor + 1; blockNum <= to; blockNum++ { // 遍历区块
-		// 这里就是核心的 扫区块 逻辑
-		if err := s.processBlock(ctx, blockNum); err != nil {
+		block, err := s.client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNum))
+		if err != nil {
 			return fmt.Errorf("block %d: %w", blockNum, err)
 		}
+		if err := s.processBlock(ctx, block); err != nil {
+			return fmt.Errorf("block %d: %w", blockNum, err)
+		}
+		parent := ""
+		if blockNum > 0 {
+			parent = block.ParentHash().Hex()
+		}
+		if err := s.commitBlock(blockNum, block.Hash().Hex(), parent); err != nil {
+			return fmt.Errorf("commit block %d: %w", blockNum, err)
+		}
 	}
-
-	return model.SetIndexerCursor(model.ChainIndexerCursorName, to) // 设置游标
+	return nil
 }
 
-func (s *Scanner) processBlock(ctx context.Context, blockNum uint64) error {
-	// 获取区块
-	block, err := s.client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNum))
-	if err != nil {
-		return err
-	}
-
+func (s *Scanner) processBlock(ctx context.Context, block *types.Block) error {
 	// 处理 TokenCreated 新币创建
 	if err := s.processTokenCreatedLogs(ctx, block); err != nil {
 		return err
@@ -335,6 +343,7 @@ func (s *Scanner) recordSeedBuy(
 		Source:       "zap",
 		TradeTime:    int64(block.Time()) * 1000,
 		BlockNumber:  block.NumberU64(),
+		BlockHash:    block.Hash().Hex(),
 	}
 	if err := model.InsertTradeIgnoreDuplicate(trade); err != nil {
 		return err
@@ -467,6 +476,7 @@ func (s *Scanner) processTradeTx(
 		Source:       "zap",
 		TradeTime:    int64(block.Time()) * 1000,
 		BlockNumber:  block.NumberU64(),
+		BlockHash:    block.Hash().Hex(),
 	}
 	// 插入交易
 	if err := model.InsertTradeIgnoreDuplicate(trade); err != nil {

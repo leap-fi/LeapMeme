@@ -25,8 +25,9 @@ var (
 	USDCAddress            = defaultUSDCAddress
 	IndexerStartBlock      uint64
 	IndexerBatchSize       uint64 = defaultIndexerBatchSize
-	IndexerConfirmations   uint64 = 1
+	IndexerConfirmations   uint64 = 6
 	IndexerPollIntervalSec        = 3
+	IndexerReorgLookback   uint64 = 64
 )
 
 func loadChainEnv() {
@@ -50,6 +51,9 @@ func loadChainEnv() {
 	}
 	if v := GetEnvOrDefaultUint64("INDEXER_CONFIRMATIONS", IndexerConfirmations); v > 0 {
 		IndexerConfirmations = v
+	}
+	if v := GetEnvOrDefaultUint64("INDEXER_REORG_LOOKBACK", IndexerReorgLookback); v > 0 {
+		IndexerReorgLookback = v
 	}
 	IndexerPollIntervalSec = GetEnvOrDefault("INDEXER_POLL_INTERVAL_SEC", IndexerPollIntervalSec)
 }

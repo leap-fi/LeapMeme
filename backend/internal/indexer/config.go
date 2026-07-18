@@ -16,6 +16,7 @@ type Config struct {
 	StartBlock      uint64
 	BatchSize       uint64
 	Confirmations   uint64
+	ReorgLookback   uint64
 	PollIntervalSec int
 }
 
@@ -30,6 +31,7 @@ func LoadConfig() Config {
 		StartBlock:      common.IndexerStartBlock,
 		BatchSize:       common.IndexerBatchSize,
 		Confirmations:   common.IndexerConfirmations,
+		ReorgLookback:   common.IndexerReorgLookback,
 		PollIntervalSec: common.IndexerPollIntervalSec,
 	}
 }

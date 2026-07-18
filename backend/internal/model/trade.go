@@ -28,7 +28,8 @@ type Trade struct {
 	Price        string `gorm:"size:64"`
 	Source       string `gorm:"size:32"`
 	TradeTime    int64  `gorm:"column:trade_time;index"`
-	BlockNumber  uint64 `gorm:"column:block_number"`
+	BlockNumber  uint64 `gorm:"column:block_number;index"`
+	BlockHash    string `gorm:"column:block_hash;size:66"`
 	CreatedAt    int64  `gorm:"column:created_at"`
 }
 
