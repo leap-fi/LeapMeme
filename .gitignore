@@ -30,3 +30,6 @@ contracts/broadcast/
 
 # Database / local
 database/.env
+
+# Crash dumps (Git Bash / MSYS)
+*.stackdump
