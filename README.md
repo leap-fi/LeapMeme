@@ -169,8 +169,6 @@ make backend-test  # go test ./...
 make web-dev       # 前端开发服务器
 ```
 
-
-
 ## 合约（可选）
 
 现网链上交互可继续使用 Alt Fun 同款地址（见 `web/.env.example` / `backend/.env.example`）。自有合约开发：
@@ -189,8 +187,6 @@ forge build && forge test
 - JSON：`backend/common/json.go`
 - 错误：`pkg/apperror` + `pkg/response`
 - 新增业务模块步骤：[docs/ADD_MODULE.md](docs/ADD_MODULE.md)
-- Agent 速查关键路径：[AGENTS.md](AGENTS.md)
-
 
 
 ## 文档索引
