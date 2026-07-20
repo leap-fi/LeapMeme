@@ -179,7 +179,7 @@ bash scripts/install-deps.sh
 forge build && forge test
 ```
 
-详见 `[contracts/README.md](contracts/README.md)` 与 `[contracts/docs/](contracts/docs/)`。
+详见 [contracts/README.md](contracts/README.md) 与 [contracts/docs/](contracts/docs/)。
 
 ## 开发约定
 
