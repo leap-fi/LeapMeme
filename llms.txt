@@ -14,7 +14,10 @@ LeapMeme is the monorepo for the LeapFi meme launchpad stack: Next.js frontend, 
 ## Key links
 
 - Organization: https://github.com/leap-fi
-- Repository: https://github.com/leap-fi/LeapMeme
+- Org profile: https://github.com/leap-fi/.github/blob/main/profile/README.md
+- Org llms.txt: https://github.com/leap-fi/.github/blob/main/llms.txt
+- LeapSwap: https://github.com/leap-fi/LeapSwap
+- Repository (this): https://github.com/leap-fi/LeapMeme
 - Brand / FAQ: https://github.com/leap-fi/LeapMeme/blob/main/docs/ABOUT.md
 - Architecture: https://github.com/leap-fi/LeapMeme/blob/main/docs/ARCHITECTURE.md
 - README: https://github.com/leap-fi/LeapMeme/blob/main/README.md
