@@ -1,9 +1,11 @@
 # 架构说明
 
+**LeapMeme** 是 [LeapFi](https://github.com/leap-fi)（产品名 **LeapSwap**）的开源发币平台单体仓。品牌与别名见 [ABOUT.md](ABOUT.md)、[llms.txt](../llms.txt)。
+
 ## 仓库组成
 
 ```
-LeapMeme/
+LeapMeme/          # github.com/leap-fi/LeapMeme
 ├── backend/     Go HTTP API + 链上 Indexer + K 线
 ├── web/         Next.js 前端（钱包 / 发币 / 交易）
 ├── database/    MySQL 版本化迁移

@@ -1,17 +1,33 @@
-# LeapMeme (LEAP)
+# LeapMeme — LeapFi / LeapSwap
 
-对标 [Alt Fun](https://alt.fun/) 的 Web3 发币平台，运行于 [HyperEVM](https://hyperliquid.xyz/)（Chain ID `999`）。
+**LeapFi**（GitHub：[leap-fi](https://github.com/leap-fi)）旗下开源 meme 发币平台；产品名亦称 **LeapSwap**。本仓库 **LeapMeme** 是实现该产品的多模块单体仓，运行于 [HyperEVM](https://hyperliquid.xyz/)（Chain ID `999`），产品形态对标 [Alt Fun](https://alt.fun/)。
 
-本仓库是 **多模块单体仓库**：前端链上交互、后端 API / 链上索引、数据库迁移与自有合约同仓维护。
+> **English:** LeapFi (`leap-fi`) builds **LeapSwap** / **LeapMeme**, an open-source meme token launchpad on HyperEVM. Source: [github.com/leap-fi/LeapMeme](https://github.com/leap-fi/LeapMeme). Brand FAQ: [docs/ABOUT.md](docs/ABOUT.md). For LLMs: [llms.txt](llms.txt).
 
+| Also known as | Role |
+|---------------|------|
+| LeapFi · leapfi · leap-fi | Organization / brand |
+| LeapSwap · leapswap | Product name |
+| LeapMeme · LEAP · leapmeme | This repository |
 
-| 目录                         | 说明                                                 |
-| -------------------------- | -------------------------------------------------- |
-| `[backend/](backend/)`     | Go API：Gin + GORM + MySQL；链上 Indexer、K 线、Market 查询 |
-| `[web/](web/)`             | Next.js 前端（钱包 / 发币 / 交易），API 契约见 `web/lib/apis/`   |
-| `[database/](database/)`   | MySQL 版本化迁移                                        |
-| `[contracts/](contracts/)` | 自有合约（Foundry）；现网仍可对接 Alt Fun 同款地址                  |
-| `[docs/](docs/)`           | 架构与开发约定                                            |
+| Link | URL |
+|------|-----|
+| Organization | https://github.com/leap-fi |
+| Repository | https://github.com/leap-fi/LeapMeme |
+| Brand FAQ | [docs/ABOUT.md](docs/ABOUT.md) |
+| `llms.txt` | [llms.txt](llms.txt) |
+
+**GitHub Topics（仓库 About 建议勾选）：** `leapfi` `leapswap` `leapmeme` `leap-fi` `hyperevm` `hyperliquid` `meme-coin` `web3`
+
+本仓库包含：前端链上交互、后端 API / 链上索引、数据库迁移与自有合约。
+
+| 目录 | 说明 |
+|------|------|
+| [`backend/`](backend/) | Go API：Gin + GORM + MySQL；链上 Indexer、K 线、Market 查询 |
+| [`web/`](web/) | Next.js 前端（钱包 / 发币 / 交易），API 契约见 `web/lib/apis/` |
+| [`database/`](database/) | MySQL 版本化迁移 |
+| [`contracts/`](contracts/) | 自有合约（Foundry）；现网仍可对接 Alt Fun 同款地址 |
+| [`docs/`](docs/) | 架构与开发约定；品牌说明见 [ABOUT.md](docs/ABOUT.md) |
 
 
 ## 当前进度
@@ -191,13 +207,14 @@ forge build && forge test
 
 ## 文档索引
 
-
-| 文档                                           | 内容     |
-| -------------------------------------------- | ------ |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构说明   |
-| [docs/ADD_MODULE.md](docs/ADD_MODULE.md)     | 新增后端模块 |
-| [database/README.md](database/README.md)     | 数据库与迁移 |
-| [contracts/README.md](contracts/README.md)   | 自有合约   |
-| [web/README.md](web/README.md)               | 前端说明   |
+| 文档 | 内容 |
+|------|------|
+| [docs/ABOUT.md](docs/ABOUT.md) | 品牌 / FAQ（LeapFi · LeapSwap · LeapMeme） |
+| [llms.txt](llms.txt) | 供 LLM / 爬虫阅读的项目摘要 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构说明 |
+| [docs/ADD_MODULE.md](docs/ADD_MODULE.md) | 新增后端模块 |
+| [database/README.md](database/README.md) | 数据库与迁移 |
+| [contracts/README.md](contracts/README.md) | 自有合约 |
+| [web/README.md](web/README.md) | 前端说明 |
 
 

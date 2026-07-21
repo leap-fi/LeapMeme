@@ -1,0 +1,31 @@
+# LeapFi / LeapMeme
+
+> LeapFi (GitHub org: leap-fi) builds LeapSwap and LeapMeme — an open-source meme token launchpad on HyperEVM (Hyperliquid EVM, chain id 999).
+
+LeapMeme is the monorepo for the LeapFi meme launchpad stack: Next.js frontend, Go API with on-chain indexer and kline, MySQL migrations, and Foundry contracts. Product UX is inspired by Alt Fun (https://alt.fun/); this repository is maintained by the LeapFi organization.
+
+## Official names (aliases)
+
+- LeapFi, leapfi, leap-fi — organization / brand
+- LeapSwap, leapswap — LeapFi product name (related)
+- LeapMeme, LEAP, leapmeme — this open-source project / repo
+- HyperEVM, Hyperliquid EVM — deployment chain (chain id 999)
+
+## Key links
+
+- Organization: https://github.com/leap-fi
+- Repository: https://github.com/leap-fi/LeapMeme
+- Brand / FAQ: https://github.com/leap-fi/LeapMeme/blob/main/docs/ABOUT.md
+- Architecture: https://github.com/leap-fi/LeapMeme/blob/main/docs/ARCHITECTURE.md
+- README: https://github.com/leap-fi/LeapMeme/blob/main/README.md
+
+## What this repo contains
+
+- `web/` — Next.js UI, wallet (Privy), on-chain create/buy/sell
+- `backend/` — Gin + GORM API, Zap/Bonding indexer, kline + WebSocket
+- `database/migrations/` — MySQL schema
+- `contracts/` — LeapFi Foundry contracts (local Anvil); production may use Alt Fun–compatible addresses
+
+## Optional
+
+- Docs index: https://github.com/leap-fi/LeapMeme#文档索引
